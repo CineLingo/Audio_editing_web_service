@@ -16,6 +16,30 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false" {...props}>
+      <path
+        fill="#EA4335"
+        d="M24 9.5c3.54 0 6.33 1.53 7.78 2.81l5.67-5.67C34.1 3.62 29.58 1.5 24 1.5 14.62 1.5 6.52 6.88 2.56 14.72l6.73 5.22C11.1 14.04 17.07 9.5 24 9.5z"
+      />
+      <path
+        fill="#4285F4"
+        d="M46.5 24.5c0-1.57-.14-3.08-.4-4.54H24v8.59h12.67c-.55 2.94-2.2 5.43-4.67 7.1l7.19 5.56c4.2-3.88 6.31-9.6 6.31-16.71z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M9.29 28.56c-.5-1.5-.79-3.1-.79-4.76s.29-3.26.79-4.76l-6.73-5.22A22.46 22.46 0 0 0 1.5 23.8c0 3.62.87 7.05 2.56 10.26l6.73-5.5z"
+      />
+      <path
+        fill="#34A853"
+        d="M24 46.5c5.58 0 10.27-1.85 13.69-5.03l-7.19-5.56c-2 1.35-4.57 2.14-6.5 2.14-6.93 0-12.9-4.54-14.71-10.7l-6.73 5.5C6.52 41.62 14.62 46.5 24 46.5z"
+      />
+      <path fill="none" d="M1.5 1.5h45v45h-45z" />
+    </svg>
+  );
+}
+
 export function LoginForm({
   className,
   ...props
@@ -70,32 +94,16 @@ export function LoginForm({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">Login</CardTitle>
+          <CardTitle className="text-2xl">로그인</CardTitle>
           <CardDescription>
-            Enter your email below to login to your account
+            계정에 로그인하려면 이메일을 입력하세요
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={handleGoogleLogin}
-              disabled={isLoading || isOAuthLoading}
-            >
-              {isOAuthLoading ? "Connecting to Google..." : "Continue with Google"}
-            </Button>
-            <div className="flex items-center gap-3">
-              <div className="h-px flex-1 bg-border" />
-              <span className="text-xs text-muted-foreground">OR</span>
-              <div className="h-px flex-1 bg-border" />
-            </div>
-          </div>
           <form onSubmit={handleLogin}>
             <div className="flex flex-col gap-6">
               <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">이메일</Label>
                 <Input
                   id="email"
                   type="email"
@@ -107,12 +115,12 @@ export function LoginForm({
               </div>
               <div className="grid gap-2">
                 <div className="flex items-center">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password">비밀번호</Label>
                   <Link
                     href="/auth/forgot-password"
                     className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
                   >
-                    Forgot your password?
+                    비밀번호를 잊으셨나요?
                   </Link>
                 </div>
                 <Input
@@ -124,20 +132,45 @@ export function LoginForm({
                 />
               </div>
               {error && <p className="text-sm text-red-500">{error}</p>}
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Logging in..." : "Login"}
+              <Button
+                type="submit"
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all duration-300"
+                disabled={isLoading}
+              >
+                {isLoading ? "로그인 중..." : "로그인"}
               </Button>
             </div>
             <div className="mt-4 text-center text-sm">
-              Don&apos;t have an account?{" "}
+              계정이 없으신가요?{" "}
               <Link
                 href="/auth/sign-up"
                 className="underline underline-offset-4"
               >
-                Sign up
+                회원가입
               </Link>
             </div>
           </form>
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                또는 다음으로 계속
+              </span>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isOAuthLoading}
+            aria-busy={isOAuthLoading}
+            className="w-full border-blue-200 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 text-blue-700 dark:text-blue-300 dark:border-blue-700 dark:hover:from-blue-900/20 dark:hover:to-purple-900/20 transition-all duration-300"
+            onClick={handleGoogleLogin}
+          >
+            <GoogleIcon className="mr-2 h-4 w-4" />
+            {isOAuthLoading ? "구글로 이동 중..." : "구글로 계속하기"}
+          </Button>
         </CardContent>
       </Card>
     </div>

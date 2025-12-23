@@ -47,8 +47,29 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
 
+  const pathname = request.nextUrl.pathname;
+
+  // 요구 동작:
+  // 1) 루트(/): 비로그인 -> /auth/login, 로그인 -> /protected
+  if (pathname === "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = user ? "/protected" : "/auth/login";
+    return NextResponse.redirect(url);
+  }
+
+  // 2) 로그인 상태에서 auth/login 또는 auth/sign-up 접근 시 -> /protected
+  // (이메일 인증/콜백/에러 같은 auth 하위 라우트는 제외)
   if (
-    request.nextUrl.pathname !== "/" &&
+    user &&
+    (pathname === "/auth/login" || pathname === "/auth/sign-up")
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/protected";
+    return NextResponse.redirect(url);
+  }
+
+  if (
+    pathname !== "/" &&
     !user &&
     !request.nextUrl.pathname.startsWith("/login") &&
     !request.nextUrl.pathname.startsWith("/auth")
