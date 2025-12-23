@@ -103,6 +103,7 @@ export function AudioWaveform({
           if (isDraggingPlayhead) return;
           const rect = e.currentTarget.getBoundingClientRect();
           const clickX = e.clientX - rect.left + e.currentTarget.scrollLeft;
+          // 에러 수정의 핵심: 고정된 상수가 아닌 현재 줌 배율(pxPerSec)을 기준으로 시간을 계산
           seek(clickX / pxPerSec);
         }}
       >
