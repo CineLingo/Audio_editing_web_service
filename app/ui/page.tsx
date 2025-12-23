@@ -7,6 +7,7 @@ import { TranscriptEditor } from './components/TranscriptEditor';
 import { useSelections } from './hooks/useSelections';
 import { useTranscript } from './hooks/useTranscript';
 import type { Selection, WhisperWord } from './ui.types';
+import { LogoutButton } from '@/components/logout-button';
 
 export default function UIPage() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -79,6 +80,12 @@ export default function UIPage() {
 
   return (
     <main className="flex flex-col gap-6 p-8 max-w-5xl mx-auto">
+      <LogoutButton
+        label="로그아웃"
+        variant="outline"
+        size="sm"
+        className="fixed top-4 right-4 z-50"
+      />
       <div className="flex items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-6">
           <AudioUploader onFileSelect={(url) => {

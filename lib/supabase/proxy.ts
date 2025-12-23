@@ -50,21 +50,21 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // 요구 동작:
-  // 1) 루트(/): 비로그인 -> /auth/login, 로그인 -> /protected
+  // 1) 루트(/): 비로그인 -> /auth/login, 로그인 -> /ui
   if (pathname === "/") {
     const url = request.nextUrl.clone();
-    url.pathname = user ? "/protected" : "/auth/login";
+    url.pathname = user ? "/ui" : "/auth/login";
     return NextResponse.redirect(url);
   }
 
-  // 2) 로그인 상태에서 auth/login 또는 auth/sign-up 접근 시 -> /protected
+  // 2) 로그인 상태에서 auth/login 또는 auth/sign-up 접근 시 -> /ui
   // (이메일 인증/콜백/에러 같은 auth 하위 라우트는 제외)
   if (
     user &&
     (pathname === "/auth/login" || pathname === "/auth/sign-up")
   ) {
     const url = request.nextUrl.clone();
-    url.pathname = "/protected";
+    url.pathname = "/ui";
     return NextResponse.redirect(url);
   }
 
