@@ -39,7 +39,7 @@ export async function requestAudioEdit(
  * 이미지의 audio_jobs 테이블 구조를 고려하여 payload 구성
  */
 export async function requestSTT(userId: string, audioId: string) {
-  const FUNCTION_URL = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/start_stt`;
+  const FUNCTION_URL = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/clever-processor`;
   
   const response = await fetch(FUNCTION_URL, {
     method: 'POST',
