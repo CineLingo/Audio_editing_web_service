@@ -45,12 +45,26 @@ export default function UIPage() {
   }, [supabase]);
 
   /**
-   * 새로운 오디오 데이터를 UI에 로드하는 공통 함수
-   * 편집 완료 후 새로운 오디오로 재편집하기 위해 사용됩니다.
+   * 상대 경로를 Supabase Public URL로 변환하는 헬퍼 함수
    */
-  const loadNewAudioData = async (audioId: string, audioUrl: string, transcriptChunks: any) => {
+  const getFullAudioUrl = (path: string) => {
+    if (path.startsWith('http') || path.startsWith('blob:')) return path;
+    const { data } = supabase.storage
+      .from("Audio_editing_bucket")
+      .getPublicUrl(path);
+    return data.publicUrl;
+  };
+
+  /**
+   * 새로운 오디오 데이터를 UI에 로드하는 공통 함수
+   */
+  const loadNewAudioData = async (audioId: string, audioPath: string, transcriptChunks: any) => {
+    // 1. 상대 경로를 전체 URL로 변환 (Prefix 문제 해결)
+    const fullUrl = getFullAudioUrl(audioPath);
+    
     setCurrentAudioId(audioId);
-    setAudioUrl(audioUrl);
+    setCurrentStoragePath(audioPath); // 다음 편집을 위해 상대 경로 저장
+    setAudioUrl(fullUrl);
     
     let words = transcriptChunks;
     if (typeof words === 'string') {
@@ -58,8 +72,9 @@ export default function UIPage() {
     }
 
     if (words && Array.isArray(words)) {
-      await processAudio(audioUrl, words);
-      setSelections([]); // 이전 편집 영역 초기화
+      // processAudio에 전체 URL 전달
+      await processAudio(fullUrl, words);
+      setSelections([]); 
     }
   };
 
@@ -88,7 +103,9 @@ export default function UIPage() {
 
       if (dbError) throw dbError;
 
-      setAudioUrl(URL.createObjectURL(file));
+      // 업로드 직후에도 전체 URL로 설정
+      const fullUrl = getFullAudioUrl(storage_path);
+      setAudioUrl(fullUrl);
       setCurrentAudioId(dbData.audio_id);
       setCurrentStoragePath(storage_path);
       alert('파일이 업로드되었습니다.');
@@ -111,6 +128,7 @@ export default function UIPage() {
       }
 
       if (words && Array.isArray(words)) {
+        // 현재 설정된 audioUrl(전체 URL)을 사용
         await processAudio(audioUrl!, words);
         alert('분석 완료');
       } else {
@@ -123,9 +141,6 @@ export default function UIPage() {
     }
   };
 
-  /**
-   * 편집 적용 및 실시간 결과 감지
-   */
   const handleEdit = async () => {
     if (!userId || !currentAudioId) return alert('로그인 정보 또는 오디오 정보가 없습니다.');
     if (selections.length === 0) return alert('편집할 영역을 선택하거나 텍스트를 수정하세요.');
@@ -133,12 +148,12 @@ export default function UIPage() {
     setIsProcessing(true);
     
     try {
+      // requestAudioEdit 호출 시에도 전체 URL이 아닌 DB 식별자와 상대 경로 사용
       const result = await requestAudioEdit(userId, currentAudioId, textValue, selections);
       const requestId = result.request_id;
       
       alert('편집 요청이 접수되었습니다. 완료 시 자동으로 오디오가 업데이트됩니다.');
 
-      // 1. Supabase Realtime 채널 생성
       const channel = supabase
         .channel(`job-${requestId}`)
         .on(
@@ -151,10 +166,8 @@ export default function UIPage() {
           },
           async (payload) => {
             const updatedJob = payload.new;
-            console.log("Job status update:", updatedJob.status);
 
             if (updatedJob.status === 'succeeded') {
-              // 2. 작업 성공 시 audios 테이블에서 새로 생성된 오디오 정보 조회
               const { data: newAudio, error: audioErr } = await supabase
                 .from('audios')
                 .select('*')
@@ -162,7 +175,7 @@ export default function UIPage() {
                 .single();
 
               if (newAudio && !audioErr) {
-                // 3. UI 갱신: 새로운 오디오를 현재 편집 오디오로 설정
+                // 새로운 오디오 로드 시 loadNewAudioData 호출 (여기서 URL 변환 발생)
                 await loadNewAudioData(
                   newAudio.audio_id, 
                   newAudio.audio_path_url, 
@@ -191,6 +204,7 @@ export default function UIPage() {
     if (confirm('모든 작업 내용을 초기화하시겠습니까?')) {
       setAudioUrl(null);
       setCurrentAudioId(null);
+      setCurrentStoragePath(null);
       setSelections([]);
       resetTranscript();
     }
