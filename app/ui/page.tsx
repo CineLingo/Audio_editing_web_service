@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from "@supabase/supabase-js";
+// lib/supabase/client.ts 에 정의한 브라우저 클라이언트를 가져옵니다.
+import { createClient } from "@/lib/supabase/client"; 
 import { AudioUploader } from './components/AudioUploader';
 import { AudioWaveform } from './components/AudioWaveform';
 import { TranscriptEditor } from './components/TranscriptEditor';
@@ -10,20 +11,19 @@ import { useTranscript } from './hooks/useTranscript';
 import { requestAudioEdit, requestSTT } from './api';
 import { LogoutButton } from '@/components/logout-button';
 
-// 환경변수 확인을 위한 로그 (브라우저 콘솔에서 확인 가능, 배포시에는 삭제 권장)
-console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!, 
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
 export default function UIPage() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [currentAudioId, setCurrentAudioId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const { selections, setSelections } = useSelections();
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
   
+  // 클라이언트 초기화
+  const supabase = createClient();
+
+  // 1. selections 상태를 먼저 선언합니다.
+  const { selections, setSelections } = useSelections();
+
+  // 2. 선언된 selections를 인자로 전달하여 transcript 훅을 초기화합니다.
   const { 
     textValue, 
     onTranscriptChange, 
@@ -33,20 +33,18 @@ export default function UIPage() {
     resetTranscript 
   } = useTranscript(selections, setSelections);
 
-  // 세션 관리 및 사용자 ID 동기화
+  // 인증 세션 확인 (쿠키 기반)
   useEffect(() => {
-    // 1. 초기 로드 시 현재 세션 확인
-    const checkUser = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUserId(session.user.id);
-      } else if (error) {
-        console.error("Session check error:", error.message);
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserId(user.id);
       }
+      setIsAuthChecking(false);
     };
-    checkUser();
 
-    // 2. 인증 상태 변경 감지 리스너 (로그인/로그아웃 등 실시간 대응)
+    fetchUser();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUserId(session.user.id);
@@ -56,14 +54,11 @@ export default function UIPage() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [supabase]);
 
+  // 파일 업로드 핸들러 (DB: audio_path_url 컬럼 사용)
   const handleFileSelect = async (file: File) => {
-    // 디버깅: 파일 선택 시 userId 상태 확인
-    if (!userId) {
-      console.warn("Upload blocked: userId is null");
-      return alert('로그인이 필요합니다. (인증 세션을 찾을 수 없습니다)');
-    }
+    if (!userId) return alert('로그인이 필요합니다.');
     
     setIsProcessing(true);
     try {
@@ -76,6 +71,7 @@ export default function UIPage() {
       
       if (uploadError) throw uploadError;
 
+      // DB Insert: 이미지의 ERD에 맞춰 audio_path_url 사용
       const { data: dbData, error: dbError } = await supabase
         .from("audios")
         .insert({
@@ -90,7 +86,7 @@ export default function UIPage() {
 
       const localUrl = URL.createObjectURL(file);
       setAudioUrl(localUrl);
-      setCurrentAudioId(dbData.audio_id);
+      setCurrentAudioId(dbData.audio_id); // ERD 기준 컬럼명: audio_id
       alert('파일이 성공적으로 업로드되었습니다.');
       
     } catch (err: any) {
@@ -101,6 +97,7 @@ export default function UIPage() {
     }
   };
 
+  // STT 분석 시작 핸들러
   const handleStartSTT = async () => {
     if (!userId || !currentAudioId) return alert('업로드된 오디오 정보가 없습니다.');
     
@@ -110,7 +107,7 @@ export default function UIPage() {
       if (result.whisper_words) {
         await processAudio(audioUrl!, result.whisper_words);
       } else {
-        alert('STT 작업이 생성되었습니다. 분석 완료까지 잠시만 기다려주세요.');
+        alert('STT 분석 작업이 요청되었습니다.');
       }
     } catch (err: any) {
       alert('STT 요청 실패: ' + err.message);
@@ -119,6 +116,7 @@ export default function UIPage() {
     }
   };
 
+  // 편집 적용 핸들러
   const handleEdit = async () => {
     if (selections.length === 0) return alert('편집할 영역을 선택하거나 텍스트를 수정하세요.');
     setIsProcessing(true);
@@ -140,6 +138,7 @@ export default function UIPage() {
     }
   };
 
+  // 초기화 핸들러
   const handleReset = () => {
     if (confirm('모든 작업 내용을 초기화하시겠습니까?')) {
       setAudioUrl(null);
@@ -159,7 +158,7 @@ export default function UIPage() {
           
           <button 
             onClick={handleStartSTT}
-            disabled={!currentAudioId || isProcessing}
+            disabled={!currentAudioId || isProcessing || !userId}
             className="px-4 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 disabled:opacity-30 transition-all shadow-md active:scale-95"
           >
             분석 시작 (Whisper)
@@ -172,9 +171,13 @@ export default function UIPage() {
             </div>
           )}
           
-          {/* 유저가 로그인 상태인지 시각적으로 확인 (디버깅용) */}
-          {!userId && !isProcessing && (
+          {/* 인증 상태 디버깅 */}
+          {isAuthChecking ? (
+            <span className="text-xs text-slate-400">인증 확인 중...</span>
+          ) : !userId ? (
             <span className="text-xs text-red-500 font-bold">인증 세션 없음</span>
+          ) : (
+            <span className="text-xs text-green-600 font-bold">인증됨 (ID: {userId.slice(0, 5)})</span>
           )}
         </div>
 
