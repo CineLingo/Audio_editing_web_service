@@ -10,7 +10,6 @@ import { useTranscript } from './hooks/useTranscript';
 import { requestAudioEdit, requestSTT } from './api';
 import { LogoutButton } from '@/components/logout-button';
 
-// Supabase 클라이언트 초기화
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!, 
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -31,20 +30,19 @@ export default function UIPage() {
     resetTranscript 
   } = useTranscript(selections, setSelections);
 
-  // 1. 세션에서 유저 ID 가져오기
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) setUserId(data.user.id);
-    });
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setUserId(user.id);
+    };
+    fetchUser();
   }, []);
 
-  // 2. 오디오 선택 시 업로드 및 DB 기록
   const handleFileSelect = async (file: File) => {
     if (!userId) return alert('로그인이 필요합니다.');
     
     setIsProcessing(true);
     try {
-      // (1) Storage 업로드
       const ext = file.name.split(".").pop() ?? "wav";
       const storage_path = `user_${userId}/uploads/${crypto.randomUUID()}.${ext}`;
       
@@ -54,13 +52,11 @@ export default function UIPage() {
       
       if (uploadError) throw uploadError;
 
-      // (2) Database 기록 (audios 테이블)
-      // duration은 필요 시 Audio 객체로 미리 구해야 함
       const { data: dbData, error: dbError } = await supabase
         .from("audios")
         .insert({
           user_id: userId,
-          storage_path: storage_path,
+          audio_path_url: storage_path,
           title: file.name
         })
         .select()
@@ -68,35 +64,32 @@ export default function UIPage() {
 
       if (dbError) throw dbError;
 
-      // (3) UI 상태 업데이트
       const localUrl = URL.createObjectURL(file);
       setAudioUrl(localUrl);
-      setCurrentAudioId(dbData.id); // DB에서 생성된 UUID
-      alert('파일이 업로드되었습니다. 분석을 시작해주세요.');
+      setCurrentAudioId(dbData.audio_id);
+      alert('파일이 성공적으로 업로드되었습니다.');
       
     } catch (err: any) {
       console.error(err);
-      alert('업로드 중 오류: ' + err.message);
+      alert('업로드 실패: ' + err.message);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // 3. STT 시작 버튼 핸들러
   const handleStartSTT = async () => {
-    if (!userId || !currentAudioId) return alert('업로드된 파일이 없습니다.');
+    if (!userId || !currentAudioId) return alert('업로드된 오디오 정보가 없습니다.');
     
     setIsProcessing(true);
     try {
       const result = await requestSTT(userId, currentAudioId);
-      // Edge Function 응답에 whisper 데이터가 포함되어 있다면 바로 반영
       if (result.whisper_words) {
         await processAudio(audioUrl!, result.whisper_words);
       } else {
-        alert('STT가 시작되었습니다. 잠시 후 데이터가 업데이트됩니다.');
+        alert('STT 작업이 생성되었습니다. 분석 완료까지 잠시만 기다려주세요.');
       }
     } catch (err: any) {
-      alert(err.message);
+      alert('STT 요청 실패: ' + err.message);
     } finally {
       setIsProcessing(false);
     }
@@ -123,12 +116,13 @@ export default function UIPage() {
     }
   };
 
+  // 에러 발생했던 부분: handleReset 함수 정의 추가
   const handleReset = () => {
-    if (confirm('작업 내용을 초기화하시겠습니까?')) {
+    if (confirm('모든 작업 내용을 초기화하시겠습니까?')) {
       setAudioUrl(null);
       setCurrentAudioId(null);
       setSelections([]);
-      resetTranscript();
+      resetTranscript(); // useTranscript 훅에서 제공하는 초기화 함수 호출
     }
   };
 
@@ -143,7 +137,7 @@ export default function UIPage() {
           <button 
             onClick={handleStartSTT}
             disabled={!currentAudioId || isProcessing}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 disabled:opacity-30 transition-all"
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 disabled:opacity-30 transition-all shadow-md active:scale-95"
           >
             분석 시작 (Whisper)
           </button>
@@ -178,7 +172,7 @@ export default function UIPage() {
         <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest">Transcript Editor</h3>
         {isProcessing ? (
           <div className="h-48 w-full rounded-xl border-2 border-dashed border-slate-100 flex items-center justify-center text-slate-400 bg-slate-50/50">
-            데이터 처리 중...
+            데이터를 처리하고 있습니다...
           </div>
         ) : (
           <TranscriptEditor value={textValue} onChange={onTranscriptChange} />

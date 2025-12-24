@@ -35,11 +35,10 @@ export async function requestAudioEdit(
 }
 
 /**
- * Supabase Edge Function 호출: STT 시작
+ * Supabase Edge Function 호출: start_stt
+ * 이미지의 audio_jobs 테이블 구조를 고려하여 payload 구성
  */
 export async function requestSTT(userId: string, audioId: string) {
-  // Supabase URL/functions/v1/start_stt 형태이나, 
-  // 보통 클라이언트에서 직접 부르거나 프록시를 통합니다.
   const FUNCTION_URL = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/start_stt`;
   
   const response = await fetch(FUNCTION_URL, {
@@ -50,7 +49,7 @@ export async function requestSTT(userId: string, audioId: string) {
     },
     body: JSON.stringify({
       user_id: userId,
-      input_audio_id: audioId
+      input_audio_id: audioId // 이미지의 audio_jobs.input_audio_id와 매칭
     }),
   });
 
