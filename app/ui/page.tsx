@@ -44,11 +44,8 @@ export default function UIPage() {
     return () => subscription.unsubscribe();
   }, [supabase]);
 
-  /**
-   * 상대 경로를 Supabase Public URL로 변환하는 헬퍼 함수
-   */
   const getFullAudioUrl = (path: string) => {
-    if (path.startsWith('http') || path.startsWith('blob:')) return path;
+    if (!path || path.startsWith('http') || path.startsWith('blob:')) return path;
     const { data } = supabase.storage
       .from("Audio_editing_bucket")
       .getPublicUrl(path);
@@ -56,14 +53,36 @@ export default function UIPage() {
   };
 
   /**
-   * 새로운 오디오 데이터를 UI에 로드하는 공통 함수
+   * audios 테이블의 audio_path_url이 placeholder가 아닐 때까지 대기 (최대 3분)
    */
+  const pollForFinalAudio = async (audioId: string): Promise<any> => {
+    const startTime = Date.now();
+    const timeout = 3 * 60 * 1000; // 3분
+
+    while (Date.now() - startTime < timeout) {
+      const { data, error } = await supabase
+        .from('audios')
+        .select('*')
+        .eq('audio_id', audioId)
+        .single();
+
+      if (data && !error) {
+        // placeholder로 시작하지 않는 실제 경로가 들어왔는지 확인
+        if (data.audio_path_url && !data.audio_path_url.startsWith('placeholder')) {
+          return data;
+        }
+      }
+      
+      console.log("오디오 파일 업로드 대기 중...");
+      await new Promise(resolve => setTimeout(resolve, 2000)); // 2초 간격
+    }
+    throw new Error("오디오 생성 대기 시간이 초과되었습니다.");
+  };
+
   const loadNewAudioData = async (audioId: string, audioPath: string, transcriptChunks: any) => {
-    // 1. 상대 경로를 전체 URL로 변환 (Prefix 문제 해결)
     const fullUrl = getFullAudioUrl(audioPath);
-    
     setCurrentAudioId(audioId);
-    setCurrentStoragePath(audioPath); // 다음 편집을 위해 상대 경로 저장
+    setCurrentStoragePath(audioPath);
     setAudioUrl(fullUrl);
     
     let words = transcriptChunks;
@@ -72,7 +91,6 @@ export default function UIPage() {
     }
 
     if (words && Array.isArray(words)) {
-      // processAudio에 전체 URL 전달
       await processAudio(fullUrl, words);
       setSelections([]); 
     }
@@ -84,26 +102,17 @@ export default function UIPage() {
     try {
       const ext = file.name.split(".").pop() ?? "wav";
       const storage_path = `user_${userId}/uploads/${crypto.randomUUID()}.${ext}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from("Audio_editing_bucket")
-        .upload(storage_path, file);
-      
+      const { error: uploadError } = await supabase.storage.from("Audio_editing_bucket").upload(storage_path, file);
       if (uploadError) throw uploadError;
 
-      const { data: dbData, error: dbError } = await supabase
-        .from("audios")
-        .insert({
-          user_id: userId,
-          audio_path_url: storage_path,
-          title: file.name
-        })
-        .select()
-        .single();
+      const { data: dbData, error: dbError } = await supabase.from("audios").insert({
+        user_id: userId,
+        audio_path_url: storage_path,
+        title: file.name
+      }).select().single();
 
       if (dbError) throw dbError;
 
-      // 업로드 직후에도 전체 URL로 설정
       const fullUrl = getFullAudioUrl(storage_path);
       setAudioUrl(fullUrl);
       setCurrentAudioId(dbData.audio_id);
@@ -118,7 +127,6 @@ export default function UIPage() {
 
   const handleStartSTT = async () => {
     if (!userId || !currentAudioId || !currentStoragePath) return alert('업로드 정보가 부족합니다.');
-    
     setIsProcessing(true);
     try {
       const result = await requestSTT(userId, currentAudioId, currentStoragePath);
@@ -126,9 +134,7 @@ export default function UIPage() {
       if (typeof words === 'string') {
         try { words = JSON.parse(words); } catch (e) { console.error(e); }
       }
-
       if (words && Array.isArray(words)) {
-        // 현재 설정된 audioUrl(전체 URL)을 사용
         await processAudio(audioUrl!, words);
         alert('분석 완료');
       } else {
@@ -148,11 +154,10 @@ export default function UIPage() {
     setIsProcessing(true);
     
     try {
-      // requestAudioEdit 호출 시에도 전체 URL이 아닌 DB 식별자와 상대 경로 사용
       const result = await requestAudioEdit(userId, currentAudioId, textValue, selections);
       const requestId = result.request_id;
       
-      alert('편집 요청이 접수되었습니다. 완료 시 자동으로 오디오가 업데이트됩니다.');
+      alert('편집 요청이 접수되었습니다. 생성이 완료될 때까지 기다려주세요.');
 
       const channel = supabase
         .channel(`job-${requestId}`)
@@ -168,20 +173,21 @@ export default function UIPage() {
             const updatedJob = payload.new;
 
             if (updatedJob.status === 'succeeded') {
-              const { data: newAudio, error: audioErr } = await supabase
-                .from('audios')
-                .select('*')
-                .eq('audio_id', updatedJob.output_audio_id)
-                .single();
-
-              if (newAudio && !audioErr) {
-                // 새로운 오디오 로드 시 loadNewAudioData 호출 (여기서 URL 변환 발생)
+              try {
+                // Succeeded가 떠도 실제 파일 URL이 박힐 때까지 대기
+                const finalAudio = await pollForFinalAudio(updatedJob.output_audio_id);
+                
                 await loadNewAudioData(
-                  newAudio.audio_id, 
-                  newAudio.audio_path_url, 
-                  newAudio.transcript_chunks
+                  finalAudio.audio_id, 
+                  finalAudio.audio_path_url, 
+                  finalAudio.transcript_chunks
                 );
+                
                 alert('편집이 완료되어 새로운 오디오로 교체되었습니다.');
+                setIsProcessing(false);
+                channel.unsubscribe();
+              } catch (pollErr: any) {
+                alert(pollErr.message);
                 setIsProcessing(false);
                 channel.unsubscribe();
               }
