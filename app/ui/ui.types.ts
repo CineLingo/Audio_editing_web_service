@@ -7,7 +7,7 @@ export type WordTimestamp = {
 };
 
 export type TranscriptWord = WordTimestamp & {
-  original: boolean; // whisper 결과인지 여부
+  original: boolean;
 };
 
 export type AudioFileInfo = {
@@ -16,12 +16,11 @@ export type AudioFileInfo = {
   duration: number;
 };
 
-// 원본 단어 단위 timestamp (절대 불변)
 export type WhisperWord = {
-  id: string;           // stable id
+  id: string;
   word: string;
-  start: number;        // abs time
-  end: number;
+  start: number;
+  end: number; // 가공 후에는 항상 숫자
 };
 
 export type WhisperResult = {
@@ -29,32 +28,19 @@ export type WhisperResult = {
   language?: string;
 };
 
-// 사용자가 보고/수정하는 단위
 export type TranscriptToken = {
-  id: string;                 // stable across edits
+  id: string;
   text: string;
-
-  // 원본과의 연결
-  sourceWordIds: string[];    // whisper word ids
-
-  // 상태
+  sourceWordIds: string[];
   isEdited: boolean;
 };
 
 export type Selection = {
   id: string;
-
-  // 원본 기준 절대 시간
   absStart: number;
   absEnd: number;
-
-  // duration 조절 (초 단위)
-  durationDelta: number; // - / + / 0
-
-  // 연결된 transcript
+  durationDelta: number;
   tokenIds: string[];
-
-  // UI 상태
   isActive: boolean;
 };
 

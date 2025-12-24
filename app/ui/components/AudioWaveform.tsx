@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Selection } from '../ui.types';
-import { SelectionItem } from './SelectionItem';
 import { UI_CONSTANTS } from '../ui.constants';
 import { useAudio } from '../hooks/useAudio';
+import { SelectionLayer } from './SelectionLayer'; // SelectionLayer 사용 시
 
 export function AudioWaveform({
   selections,
@@ -99,13 +99,6 @@ export function AudioWaveform({
       <div 
         ref={scrollContainerRef} 
         className="relative w-full overflow-x-auto rounded-lg bg-slate-50 border border-slate-200 select-none custom-scrollbar" 
-        onClick={(e) => {
-          if (isDraggingPlayhead) return;
-          const rect = e.currentTarget.getBoundingClientRect();
-          const clickX = e.clientX - rect.left + e.currentTarget.scrollLeft;
-          // 에러 수정의 핵심: 고정된 상수가 아닌 현재 줌 배율(pxPerSec)을 기준으로 시간을 계산
-          seek(clickX / pxPerSec);
-        }}
       >
         <div className="relative" style={{ height: UI_CONSTANTS.WAVEFORM_HEIGHT, width: totalWidth }}>
           <div 
@@ -120,16 +113,14 @@ export function AudioWaveform({
             {renderRulers()}
           </div>
 
-          {selections.map((sel) => (
-            <SelectionItem 
-              key={sel.id} 
-              selection={sel} 
-              pxPerSec={pxPerSec} 
-              isSelected={selectedId === sel.id} 
-              onSelect={setSelectedId} 
-              onUpdate={(id, updates) => setSelections(prev => prev.map(s => s.id === id ? {...s, ...updates} : s))} 
-            />
-          ))}
+          {/* SelectionLayer를 사용하여 하위 아이템 및 인터랙션 위임 */}
+          <SelectionLayer 
+            selections={selections} 
+            setSelections={setSelections} 
+            pxPerSec={pxPerSec} 
+            selectedId={selectedId} 
+            onSelect={setSelectedId} 
+          />
         </div>
       </div>
     </div>

@@ -1,150 +1,184 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createClient } from "@supabase/supabase-js";
 import { AudioUploader } from './components/AudioUploader';
 import { AudioWaveform } from './components/AudioWaveform';
 import { TranscriptEditor } from './components/TranscriptEditor';
 import { useSelections } from './hooks/useSelections';
 import { useTranscript } from './hooks/useTranscript';
-import type { Selection, WhisperWord } from './ui.types';
+import { requestAudioEdit, requestSTT } from './api';
 import { LogoutButton } from '@/components/logout-button';
+
+// Supabase 클라이언트 초기화
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!, 
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default function UIPage() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [currentAudioId, setCurrentAudioId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const { selections, setSelections } = useSelections();
-  const { textValue, onTranscriptChange, isProcessing, processAudio, resetTranscript } = useTranscript(setSelections);
+  
+  const { 
+    textValue, 
+    onTranscriptChange, 
+    isProcessing, 
+    setIsProcessing, 
+    processAudio, 
+    resetTranscript 
+  } = useTranscript(selections, setSelections);
 
-  // --- 가상의 가공 API 호출 함수 ---
-  const callEditAPI = async (currentSelections: Selection[]) => {
-    console.log('[API Call] Sending Selections for Editing:', currentSelections);
-    
-    // 시뮬레이션: 서버에서 오디오 가공 및 새로운 분석 결과 생성
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // 실제 환경에서는 여기서 새로운 wav URL과 새로운 whisper JSON을 받아옵니다.
-    const newAudioUrl = audioUrl; // 예시를 위해 동일 URL 사용
-    const newWhisperResult: WhisperWord[] = [
-        { id: 'nw1', word: '수정된', start: 0.0, end: 0.8 },
-        { id: 'nw2', word: '결과입니다', start: 0.8, end: 2.0 },
-    ];
+  // 1. 세션에서 유저 ID 가져오기
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) setUserId(data.user.id);
+    });
+  }, []);
 
-    return { newAudioUrl, newWhisperResult };
+  // 2. 오디오 선택 시 업로드 및 DB 기록
+  const handleFileSelect = async (file: File) => {
+    if (!userId) return alert('로그인이 필요합니다.');
+    
+    setIsProcessing(true);
+    try {
+      // (1) Storage 업로드
+      const ext = file.name.split(".").pop() ?? "wav";
+      const storage_path = `user_${userId}/uploads/${crypto.randomUUID()}.${ext}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from("Audio_editing_bucket")
+        .upload(storage_path, file);
+      
+      if (uploadError) throw uploadError;
+
+      // (2) Database 기록 (audios 테이블)
+      // duration은 필요 시 Audio 객체로 미리 구해야 함
+      const { data: dbData, error: dbError } = await supabase
+        .from("audios")
+        .insert({
+          user_id: userId,
+          storage_path: storage_path,
+          title: file.name
+        })
+        .select()
+        .single();
+
+      if (dbError) throw dbError;
+
+      // (3) UI 상태 업데이트
+      const localUrl = URL.createObjectURL(file);
+      setAudioUrl(localUrl);
+      setCurrentAudioId(dbData.id); // DB에서 생성된 UUID
+      alert('파일이 업로드되었습니다. 분석을 시작해주세요.');
+      
+    } catch (err: any) {
+      console.error(err);
+      alert('업로드 중 오류: ' + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // 3. STT 시작 버튼 핸들러
+  const handleStartSTT = async () => {
+    if (!userId || !currentAudioId) return alert('업로드된 파일이 없습니다.');
+    
+    setIsProcessing(true);
+    try {
+      const result = await requestSTT(userId, currentAudioId);
+      // Edge Function 응답에 whisper 데이터가 포함되어 있다면 바로 반영
+      if (result.whisper_words) {
+        await processAudio(audioUrl!, result.whisper_words);
+      } else {
+        alert('STT가 시작되었습니다. 잠시 후 데이터가 업데이트됩니다.');
+      }
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleEdit = async () => {
     if (selections.length === 0) return alert('편집할 영역을 선택하거나 텍스트를 수정하세요.');
-    
+    setIsProcessing(true);
     try {
-      const { newAudioUrl, newWhisperResult } = await callEditAPI(selections);
-      
-      // 1. 새로운 오디오와 Whisper 결과로 UI 갱신
-      if (newAudioUrl) setAudioUrl(newAudioUrl + "?t=" + Date.now()); // 캐시 방지
-      await processAudio(newAudioUrl!, newWhisperResult);
-      
-      // 2. 편집 완료된 영역들(Selections) 초기화
+      const result = await requestAudioEdit(
+        currentAudioId || 'placeholder', 
+        textValue,
+        selections
+      );
+      const freshAudioUrl = `${result.newAudioUrl}?t=${Date.now()}`;
+      setAudioUrl(freshAudioUrl);
+      await processAudio(freshAudioUrl, result.newWhisperWords);
       setSelections([]);
-      alert('편집이 완료되었습니다. 새로운 상태에서 다시 편집할 수 있습니다.');
+      alert('편집이 적용되었습니다.');
     } catch (err) {
-      console.error(err);
+      alert('편집 적용 실패');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleReset = () => {
-    if (confirm('모든 작업 내용을 초기화하고 처음부터 다시 시작하시겠습니까?')) {
+    if (confirm('작업 내용을 초기화하시겠습니까?')) {
       setAudioUrl(null);
+      setCurrentAudioId(null);
       setSelections([]);
       resetTranscript();
     }
   };
 
-  // 1. 오디오 다운로드 기능 구현
-  const handleDownload = async () => {
-    if (!audioUrl) return;
-
-    try {
-      const response = await fetch(audioUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `edited_audio_${Date.now()}.wav`; // 파일명 지정
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error) {
-      console.error('Download failed:', error);
-      alert('다운로드 중 오류가 발생했습니다.');
-    }
-  };
-
   return (
-    <main className="flex flex-col gap-6 p-8 max-w-5xl mx-auto">
-      <LogoutButton
-        label="로그아웃"
-        variant="outline"
-        size="sm"
-        className="fixed top-4 right-4 z-50"
-      />
-      <div className="flex items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm">
+    <main className="flex flex-col gap-6 p-8 max-w-5xl mx-auto min-h-screen">
+      <LogoutButton label="로그아웃" variant="outline" size="sm" className="fixed top-4 right-4 z-50" />
+
+      <div className="flex items-center justify-between bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-6">
-          <AudioUploader onFileSelect={(url) => {
-            setSelections([]);
-            processAudio(url);
-            setAudioUrl(url);
-          }} />
+          <AudioUploader onFileSelect={handleFileSelect} />
           
+          <button 
+            onClick={handleStartSTT}
+            disabled={!currentAudioId || isProcessing}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 disabled:opacity-30 transition-all"
+          >
+            분석 시작 (Whisper)
+          </button>
+
           {isProcessing && (
-            <div className="flex items-center gap-2 text-blue-600 font-semibold animate-pulse">
+            <div className="flex items-center gap-3 text-blue-600 font-bold animate-pulse">
               <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-              Processing...
+              <span>처리 중...</span>
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* 다운로드 버튼 추가 */}
-          <button
-            onClick={handleDownload}
-            disabled={!audioUrl || isProcessing}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-              <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
-              <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
-            </svg>
-            Download
-          </button>
-
-          <button 
-            onClick={handleReset}
-            className="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors"
-          >
+        <div className="flex items-center gap-3">
+          <button onClick={handleReset} className="px-5 py-2.5 text-sm font-semibold text-slate-400 hover:text-slate-800 transition-colors">
             초기화
           </button>
-
           <button 
-            onClick={handleEdit}
-            disabled={isProcessing || selections.length === 0}
-            className="bg-blue-600 text-white px-8 py-2 rounded-lg font-bold hover:bg-blue-700 shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={handleEdit} 
+            disabled={isProcessing || selections.length === 0} 
+            className="bg-blue-600 text-white px-8 py-2.5 rounded-xl font-bold hover:bg-blue-700 shadow-lg active:scale-95 transition-all disabled:opacity-40"
           >
             Edit (적용)
           </button>
         </div>
       </div>
 
-      <section>
+      <section className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm bg-white p-1">
         <AudioWaveform selections={selections} setSelections={setSelections} audioUrl={audioUrl} />
       </section>
 
-      <section className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm relative">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Transcript Editor</h3>
-        </div>
-        
+      <section className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
+        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest">Transcript Editor</h3>
         {isProcessing ? (
-          <div className="h-40 w-full rounded border border-dashed border-gray-200 flex items-center justify-center text-gray-400">
-            분석 중입니다...
+          <div className="h-48 w-full rounded-xl border-2 border-dashed border-slate-100 flex items-center justify-center text-slate-400 bg-slate-50/50">
+            데이터 처리 중...
           </div>
         ) : (
           <TranscriptEditor value={textValue} onChange={onTranscriptChange} />

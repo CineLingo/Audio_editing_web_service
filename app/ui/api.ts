@@ -1,20 +1,23 @@
 // app/ui/api.ts
 import { Selection, WhisperWord } from './ui.types';
 
-/**
- * 편집된 Selection 리스트를 서버로 전송하고 새로운 오디오와 Whisper 결과를 받아옵니다.
- */
-export async function requestAudioEdit(audioId: string, selections: Selection[]) {
-  // 실제 API 엔드포인트로 변경하세요
+interface AudioEditResponse {
+  newAudioUrl: string;
+  newWhisperWords: WhisperWord[];
+}
+
+export async function requestAudioEdit(
+  audioId: string, 
+  fullText: string, 
+  selections: Selection[]
+): Promise<AudioEditResponse> {
   const API_ENDPOINT = '/api/edit-audio';
 
   const payload = {
     audioId,
-    selections: selections.map(s => ({
-      absStart: s.absStart,
-      absEnd: s.absEnd,
-      durationDelta: s.durationDelta
-    }))
+    target_text: fullText,
+    edit_timestamps: selections.map(s => [s.absStart, s.absEnd]),
+    expansions: selections.map(s => s.durationDelta)
   };
 
   const response = await fetch(API_ENDPOINT, {
@@ -23,8 +26,37 @@ export async function requestAudioEdit(audioId: string, selections: Selection[])
     body: JSON.stringify(payload),
   });
 
-  if (!response.ok) throw new Error('Audio editing failed');
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Audio editing failed');
+  }
 
-  // 서버에서 { newAudioUrl: string, newWhisperWords: WhisperWord[] } 형태의 응답을 준다고 가정
+  return await response.json();
+}
+
+/**
+ * Supabase Edge Function 호출: STT 시작
+ */
+export async function requestSTT(userId: string, audioId: string) {
+  // Supabase URL/functions/v1/start_stt 형태이나, 
+  // 보통 클라이언트에서 직접 부르거나 프록시를 통합니다.
+  const FUNCTION_URL = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/start_stt`;
+  
+  const response = await fetch(FUNCTION_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`
+    },
+    body: JSON.stringify({
+      user_id: userId,
+      input_audio_id: audioId
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error('STT 요청에 실패했습니다.');
+  }
+
   return await response.json();
 }

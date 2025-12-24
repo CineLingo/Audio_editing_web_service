@@ -1,11 +1,10 @@
 'use client';
 
-export function AudioUploader({ onFileSelect }: { onFileSelect: (url: string) => void }) {
+export function AudioUploader({ onFileSelect }: { onFileSelect: (file: File) => void }) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const url = URL.createObjectURL(file);
-      onFileSelect(url);
+      onFileSelect(file);
     }
   };
 
