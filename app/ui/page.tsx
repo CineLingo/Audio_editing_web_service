@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+// lib/supabase/client.ts 에 정의한 브라우저 클라이언트를 가져옵니다.
 import { createClient } from "@/lib/supabase/client"; 
 import { AudioUploader } from './components/AudioUploader';
 import { AudioWaveform } from './components/AudioWaveform';
@@ -29,6 +30,7 @@ export default function UIPage() {
     resetTranscript 
   } = useTranscript(selections, setSelections);
 
+  // 인증 세션 확인
   useEffect(() => {
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -44,6 +46,7 @@ export default function UIPage() {
     return () => subscription.unsubscribe();
   }, [supabase]);
 
+  // 파일 업로드 핸들러
   const handleFileSelect = async (file: File) => {
     if (!userId) return alert('로그인이 필요합니다.');
     setIsProcessing(true);
@@ -82,7 +85,7 @@ export default function UIPage() {
 
   /**
    * Whisper 분석 버튼 클릭 핸들러
-   * 서버(Edge Function)로부터 분석 결과를 받아와서 에디터에 반영합니다.
+   * 고쳐진 부분: Edge Function의 응답 키인 'transcript_chunks'를 처리합니다.
    */
   const handleStartSTT = async () => {
     if (!userId || !currentAudioId || !currentStoragePath) return alert('업로드 정보가 부족합니다.');
@@ -92,17 +95,26 @@ export default function UIPage() {
       // 1. API 호출 (create_audio -> clever-processor 순차 실행)
       const result = await requestSTT(userId, currentAudioId, currentStoragePath);
       
-      // 2. 결과 처리
-      // Edge Function이 분석 결과(whisper_words)를 반환한다고 가정합니다.
-      // 만약 결과 데이터 키값이 다르다면(예: whisperWords 등) 그에 맞춰 수정해야 합니다.
-      if (result && (result.whisper_words || result.words)) {
-        const words = result.whisper_words || result.words;
-        
-        // 3. 받은 단어 데이터를 Transcript Editor와 Waveform에 주입
+      // 2. 결과 데이터 추출 (Edge Function 응답 구조: { status, transcript, transcript_chunks })
+      // 서버에서 온 데이터가 문자열일 경우 파싱하고, 아니면 그대로 사용합니다.
+      let words = result?.transcript_chunks;
+
+      if (typeof words === 'string') {
+        try {
+          words = JSON.parse(words);
+        } catch (e) {
+          console.error("Failed to parse transcript_chunks string", e);
+        }
+      }
+
+      // 3. 데이터가 유효한 배열인지 확인 후 반영
+      if (words && Array.isArray(words)) {
+        // useTranscript의 processAudio를 호출하여 에디터와 파형을 갱신합니다.
         await processAudio(audioUrl!, words);
         alert('분석이 완료되어 텍스트가 로드되었습니다.');
       } else {
-        alert('분석 요청은 성공했으나, 결과 데이터를 받지 못했습니다. 서버 로그를 확인해주세요.');
+        console.error("STT Result missing valid chunks:", result);
+        alert('분석은 성공했으나 데이터를 에디터에 표시할 수 없습니다. 서버 응답 형식을 확인하세요.');
       }
     } catch (err: any) {
       console.error("STT Error:", err);
@@ -112,6 +124,7 @@ export default function UIPage() {
     }
   };
 
+  // 편집 적용 핸들러
   const handleEdit = async () => {
     if (selections.length === 0) return alert('편집할 영역을 선택하거나 텍스트를 수정하세요.');
     setIsProcessing(true);
@@ -133,6 +146,7 @@ export default function UIPage() {
     }
   };
 
+  // 초기화 핸들러
   const handleReset = () => {
     if (confirm('모든 작업 내용을 초기화하시겠습니까?')) {
       setAudioUrl(null);
