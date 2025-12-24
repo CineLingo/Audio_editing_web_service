@@ -33,11 +33,9 @@ export async function requestAudioEdit(
 
   return await response.json();
 }
+
 /**
  * 오디오 생성 및 STT 프로세스 실행
- * @param userId 사용자 식별자
- * @param audioId DB 레코드 식별자 (audio_id)
- * @param audioPathUrl 스토리지에 저장된 경로 (storage_path)
  */
 export async function requestSTT(userId: string, audioId: string, audioPathUrl: string) {
   const BASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -48,26 +46,28 @@ export async function requestSTT(userId: string, audioId: string, audioPathUrl: 
     'Authorization': `Bearer ${ANON_KEY}`
   };
 
-  // 백엔드 에러 메시지에 따라 storage_path 키를 포함하여 구성합니다.
-  const payload = {
-    user_id: userId,
-    input_audio_id: audioId,
-    storage_path: audioPathUrl // 에러 메시지 규격에 맞춤
-  };
-
   try {
-    // --- STEP 1: create_audio 호출 ---
-    console.log("1. create_audio 호출 중 (storage_path 포함)...");
+    // --- STEP 1: create_audio 호출 (제공해주신 Edge Function) ---
+    console.log("1. create_audio 호출 중...");
     const createAudioResponse = await fetch(`${BASE_URL}/functions/v1/create_audio`, {
       method: 'POST',
       headers: commonHeaders,
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        user_id: userId,
+        storage_path: audioPathUrl, // Edge Function 내부 로직에 맞춰 전달
+        title: "Uploaded Audio",      // 선택 사항
+        duration: 0                   // 선택 사항 (0 또는 실제 길이)
+      }),
     });
 
     if (!createAudioResponse.ok) {
       const errorData = await createAudioResponse.json();
-      throw new Error(`create_audio 실패: ${JSON.stringify(errorData)}`);
+      throw new Error(`create_audio 실패: ${errorData.error || JSON.stringify(errorData)}`);
     }
+
+    const createResult = await createAudioResponse.json();
+    // Edge Function에서 반환된 실제 DB의 audio_id를 사용합니다.
+    const dbAudioId = createResult.audio_id;
 
     // --- STEP 2: STT (clever-processor) 호출 ---
     console.log("2. clever-processor 호출 중...");
@@ -76,19 +76,19 @@ export async function requestSTT(userId: string, audioId: string, audioPathUrl: 
       headers: commonHeaders,
       body: JSON.stringify({
         user_id: userId,
-        input_audio_id: audioId
+        input_audio_id: dbAudioId // 생성된 실제 DB ID 전달
       }),
     });
 
     if (!sttResponse.ok) {
       const errorData = await sttResponse.json();
-      throw new Error(`STT 분석 요청 실패: ${JSON.stringify(errorData)}`);
+      throw new Error(`STT 분석 요청 실패: ${errorData.error || JSON.stringify(errorData)}`);
     }
 
     return await sttResponse.json();
 
   } catch (error: any) {
-    console.error("STT 요청 흐름 중 에러 발생:", error);
+    console.error("STT flow error:", error);
     throw error;
   }
 }
