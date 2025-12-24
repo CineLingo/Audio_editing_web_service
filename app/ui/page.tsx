@@ -10,6 +10,9 @@ import { useTranscript } from './hooks/useTranscript';
 import { requestAudioEdit, requestSTT } from './api';
 import { LogoutButton } from '@/components/logout-button';
 
+// 환경변수 확인을 위한 로그 (브라우저 콘솔에서 확인 가능, 배포시에는 삭제 권장)
+console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!, 
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -30,16 +33,37 @@ export default function UIPage() {
     resetTranscript 
   } = useTranscript(selections, setSelections);
 
+  // 세션 관리 및 사용자 ID 동기화
   useEffect(() => {
-    const fetchUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) setUserId(user.id);
+    // 1. 초기 로드 시 현재 세션 확인
+    const checkUser = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUserId(session.user.id);
+      } else if (error) {
+        console.error("Session check error:", error.message);
+      }
     };
-    fetchUser();
+    checkUser();
+
+    // 2. 인증 상태 변경 감지 리스너 (로그인/로그아웃 등 실시간 대응)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUserId(session.user.id);
+      } else {
+        setUserId(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const handleFileSelect = async (file: File) => {
-    if (!userId) return alert('로그인이 필요합니다.');
+    // 디버깅: 파일 선택 시 userId 상태 확인
+    if (!userId) {
+      console.warn("Upload blocked: userId is null");
+      return alert('로그인이 필요합니다. (인증 세션을 찾을 수 없습니다)');
+    }
     
     setIsProcessing(true);
     try {
@@ -70,7 +94,7 @@ export default function UIPage() {
       alert('파일이 성공적으로 업로드되었습니다.');
       
     } catch (err: any) {
-      console.error(err);
+      console.error("Upload Error:", err);
       alert('업로드 실패: ' + err.message);
     } finally {
       setIsProcessing(false);
@@ -116,13 +140,12 @@ export default function UIPage() {
     }
   };
 
-  // 에러 발생했던 부분: handleReset 함수 정의 추가
   const handleReset = () => {
     if (confirm('모든 작업 내용을 초기화하시겠습니까?')) {
       setAudioUrl(null);
       setCurrentAudioId(null);
       setSelections([]);
-      resetTranscript(); // useTranscript 훅에서 제공하는 초기화 함수 호출
+      resetTranscript();
     }
   };
 
@@ -147,6 +170,11 @@ export default function UIPage() {
               <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
               <span>처리 중...</span>
             </div>
+          )}
+          
+          {/* 유저가 로그인 상태인지 시각적으로 확인 (디버깅용) */}
+          {!userId && !isProcessing && (
+            <span className="text-xs text-red-500 font-bold">인증 세션 없음</span>
           )}
         </div>
 
