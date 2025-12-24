@@ -14,6 +14,7 @@ import { LogoutButton } from '@/components/logout-button';
 export default function UIPage() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [currentAudioId, setCurrentAudioId] = useState<string | null>(null);
+  const [currentStoragePath, setCurrentStoragePath] = useState<string | null>(null); // 추가
   const [userId, setUserId] = useState<string | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   
@@ -59,7 +60,6 @@ export default function UIPage() {
   // 파일 업로드 핸들러 (DB: audio_path_url 컬럼 사용)
   const handleFileSelect = async (file: File) => {
     if (!userId) return alert('로그인이 필요합니다.');
-    
     setIsProcessing(true);
     try {
       const ext = file.name.split(".").pop() ?? "wav";
@@ -71,7 +71,6 @@ export default function UIPage() {
       
       if (uploadError) throw uploadError;
 
-      // DB Insert: 이미지의 ERD에 맞춰 audio_path_url 사용
       const { data: dbData, error: dbError } = await supabase
         .from("audios")
         .insert({
@@ -84,33 +83,31 @@ export default function UIPage() {
 
       if (dbError) throw dbError;
 
-      const localUrl = URL.createObjectURL(file);
-      setAudioUrl(localUrl);
-      setCurrentAudioId(dbData.audio_id); // ERD 기준 컬럼명: audio_id
-      alert('파일이 성공적으로 업로드되었습니다.');
-      
+      setAudioUrl(URL.createObjectURL(file));
+      setCurrentAudioId(dbData.audio_id);
+      setCurrentStoragePath(storage_path); // 경로 저장
+      alert('파일이 업로드되었습니다.');
     } catch (err: any) {
-      console.error("Upload Error:", err);
       alert('업로드 실패: ' + err.message);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // STT 분석 시작 핸들러
   const handleStartSTT = async () => {
-    if (!userId || !currentAudioId) return alert('업로드된 오디오 정보가 없습니다.');
+    if (!userId || !currentAudioId || !currentStoragePath) return alert('업로드 정보가 부족합니다.');
     
     setIsProcessing(true);
     try {
-      const result = await requestSTT(userId, currentAudioId);
+      // 이제 userId, audioId, storagePath 세 개를 모두 보냅니다.
+      const result = await requestSTT(userId, currentAudioId, currentStoragePath);
       if (result.whisper_words) {
         await processAudio(audioUrl!, result.whisper_words);
       } else {
-        alert('STT 분석 작업이 요청되었습니다.');
+        alert('분석 요청이 완료되었습니다.');
       }
     } catch (err: any) {
-      alert('STT 요청 실패: ' + err.message);
+      alert(err.message);
     } finally {
       setIsProcessing(false);
     }
