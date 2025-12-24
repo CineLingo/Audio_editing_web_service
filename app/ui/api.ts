@@ -1,39 +1,56 @@
 // app/ui/api.ts
 import { Selection, WhisperWord } from './ui.types';
 
-interface AudioEditResponse {
-  newAudioUrl: string;
-  newWhisperWords: WhisperWord[];
+// Edge Function이 즉시 결과를 주지 않고 작업 접수 정보만 주므로 인터페이스 수정
+interface AudioEditRequestResponse {
+  status: string;
+  request_id: string;
+  output_audio_id: string;
+  runpod_raw: string;
 }
 
+/**
+ * @param userId 현재 로그인한 사용자 UUID
+ * @param audioId 원본 오디오 식별자 (input_audio_id)
+ * @param fullText TranscriptEditor의 전체 텍스트 (target_text용)
+ * @param selections 사용자가 정의한 편집 영역 리스트
+ */
 export async function requestAudioEdit(
+  userId: string,
   audioId: string, 
   fullText: string, 
   selections: Selection[]
-): Promise<AudioEditResponse> {
-  const API_ENDPOINT = '/api/edit-audio';
+): Promise<AudioEditRequestResponse> {
+  // Edge Function 경로 (일반적으로 /functions/v1/파일명)
+  const API_ENDPOINT = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/start_editing`;
+  const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+  // Edge Function 규격에 맞춘 페이로드 생성
   const payload = {
-    audioId,
+    user_id: userId,
+    input_audio_id: audioId,
+    title: `Edited_${new Date().toISOString().slice(0, 10)}`, // 제목 예시
     target_text: fullText,
-    edit_timestamps: selections.map(s => [s.absStart, s.absEnd]),
-    expansions: selections.map(s => s.durationDelta)
+    edit_timestamps: selections.map(s => [s.absStart, s.absEnd]), // [[start, end], ...]
+    expansions: selections.map(s => s.durationDelta) // [delta, ...]
   };
 
   const response = await fetch(API_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${ANON_KEY}` // Edge Function 호출을 위한 인증 추가
+    },
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(errorData.message || 'Audio editing failed');
+    throw new Error(errorData.error || 'Audio editing request failed');
   }
 
   return await response.json();
 }
-
 /**
  * 오디오 생성 및 STT 프로세스 실행
  */
