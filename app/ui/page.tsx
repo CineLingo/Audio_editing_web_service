@@ -229,6 +229,36 @@ export default function UIPage() {
     <main className="flex flex-col gap-6 p-8 max-w-5xl mx-auto min-h-screen">
       <LogoutButton label="로그아웃" variant="outline" size="sm" className="fixed top-4 right-4 z-50" />
 
+      {/* 가이드 설명서 섹션 */}
+      <section className="bg-slate-50 p-8 rounded-3xl border border-slate-200">
+        <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+          <span className="flex items-center justify-center w-6 h-6 bg-slate-900 text-white text-xs rounded-full">?</span>
+          이용 가이드
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="flex flex-col gap-2">
+            <div className="text-blue-600 font-black text-xl">01</div>
+            <div className="font-bold text-slate-800">오디오 업로드</div>
+            <p className="text-xs text-slate-500 leading-relaxed">편집할 오디오 파일을 선택하여 서버에 업로드합니다.</p>
+          </div>
+          <div className="flex flex-col gap-2 border-l border-slate-200 pl-6">
+            <div className="text-purple-600 font-black text-xl">02</div>
+            <div className="font-bold text-slate-800">분석 시작</div>
+            <p className="text-xs text-slate-500 leading-relaxed"><b>[분석]</b> 버튼을 눌러 음성을 텍스트로 변환합니다.</p>
+          </div>
+          <div className="flex flex-col gap-2 border-l border-slate-200 pl-6">
+            <div className="text-indigo-600 font-black text-xl">03</div>
+            <div className="font-bold text-slate-800">텍스트 및 영역 편집</div>
+            <p className="text-xs text-slate-500 leading-relaxed">텍스트를 수정하면 자동으로 영역이 잡힙니다. 빨강 핸들로 <b>범위</b>를, 파랑 핸들로 <b>시간</b>을 조절하세요.</p>
+          </div>
+          <div className="flex flex-col gap-2 border-l border-slate-200 pl-6">
+            <div className="text-emerald-600 font-black text-xl">04</div>
+            <div className="font-bold text-slate-800">편집 적용</div>
+            <p className="text-xs text-slate-500 leading-relaxed"><b>[편집]</b> 버튼을 누르면 새로운 오디오가 생성됩니다.</p>
+          </div>
+        </div>
+      </section>
+
       {/* 상단 컨트롤 바 */}
       <div className="flex items-center justify-between bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-6">
@@ -286,36 +316,6 @@ export default function UIPage() {
         ) : (
           <TranscriptEditor value={textValue} onChange={onTranscriptChange} />
         )}
-      </section>
-
-      {/* 가이드 설명서 섹션 */}
-      <section className="bg-slate-50 p-8 rounded-3xl border border-slate-200 mt-4">
-        <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-          <span className="flex items-center justify-center w-6 h-6 bg-slate-900 text-white text-xs rounded-full">?</span>
-          이용 가이드
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="flex flex-col gap-2">
-            <div className="text-blue-600 font-black text-xl">01</div>
-            <div className="font-bold text-slate-800">오디오 업로드</div>
-            <p className="text-xs text-slate-500 leading-relaxed">편집할 오디오 파일을 선택하여 서버에 업로드합니다.</p>
-          </div>
-          <div className="flex flex-col gap-2 border-l border-slate-200 pl-6">
-            <div className="text-purple-600 font-black text-xl">02</div>
-            <div className="font-bold text-slate-800">분석 시작</div>
-            <p className="text-xs text-slate-500 leading-relaxed"><b>[분석]</b> 버튼을 눌러 음성을 텍스트로 변환합니다.</p>
-          </div>
-          <div className="flex flex-col gap-2 border-l border-slate-200 pl-6">
-            <div className="text-indigo-600 font-black text-xl">03</div>
-            <div className="font-bold text-slate-800">텍스트 및 영역 편집</div>
-            <p className="text-xs text-slate-500 leading-relaxed">텍스트를 수정하면 자동으로 영역이 잡힙니다. 빨강 핸들로 <b>범위</b>를, 파랑 핸들로 <b>시간</b>을 조절하세요.</p>
-          </div>
-          <div className="flex flex-col gap-2 border-l border-slate-200 pl-6">
-            <div className="text-emerald-600 font-black text-xl">04</div>
-            <div className="font-bold text-slate-800">편집 적용</div>
-            <p className="text-xs text-slate-500 leading-relaxed"><b>[편집]</b> 버튼을 누르면 새로운 오디오가 생성됩니다.</p>
-          </div>
-        </div>
       </section>
     </main>
   );
