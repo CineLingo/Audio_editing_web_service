@@ -73,9 +73,21 @@ export function LoginForm({
   };
 
   const handleGoogleLogin = async () => {
-    const supabase = createClient();
+    let supabase: ReturnType<typeof createClient>;
     setIsOAuthLoading(true);
     setError(null);
+
+    try {
+      supabase = createClient();
+    } catch (e: unknown) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Supabase 설정값(NEXT_PUBLIC_SUPABASE_URL / KEY)을 찾을 수 없습니다."
+      );
+      setIsOAuthLoading(false);
+      return;
+    }
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",

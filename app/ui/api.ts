@@ -22,8 +22,18 @@ export async function requestAudioEdit(
   selections: Selection[]
 ): Promise<AudioEditRequestResponse> {
   // Edge Function 경로 (일반적으로 /functions/v1/파일명)
-  const API_ENDPOINT = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/start_editing`;
-  const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const BASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const API_KEY =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!BASE_URL || !API_KEY) {
+    throw new Error(
+      "Missing Supabase env vars: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY)."
+    );
+  }
+
+  const API_ENDPOINT = `${BASE_URL}/functions/v1/start_editing`;
 
   // Edge Function 규격에 맞춘 페이로드 생성
   const payload = {
@@ -39,7 +49,7 @@ export async function requestAudioEdit(
     method: 'POST',
     headers: { 
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${ANON_KEY}` // Edge Function 호출을 위한 인증 추가
+      'Authorization': `Bearer ${API_KEY}` // Edge Function 호출을 위한 인증 추가
     },
     body: JSON.stringify(payload),
   });
@@ -56,11 +66,19 @@ export async function requestAudioEdit(
  */
 export async function requestSTT(userId: string, audioId: string, audioPathUrl: string) {
   const BASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const API_KEY =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!BASE_URL || !API_KEY) {
+    throw new Error(
+      "Missing Supabase env vars: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY)."
+    );
+  }
 
   const commonHeaders = {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${ANON_KEY}`
+    'Authorization': `Bearer ${API_KEY}`
   };
 
   try {
