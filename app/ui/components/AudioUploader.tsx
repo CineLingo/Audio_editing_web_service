@@ -1,7 +1,5 @@
 'use client';
 
-'use client';
-
 import { useId, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent } from 'react';
 import { UI_CONSTANTS } from '../ui.constants';

@@ -271,7 +271,7 @@ export default function UIPage() {
 
       {/* 상단 컨트롤 바 */}
       <div className="flex items-center justify-between bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-6 min-w-0">
           <AudioUploader onFileSelect={handleFileSelect} disabled={isProcessing} />
           <button 
             onClick={handleStartSTT} 
@@ -280,33 +280,31 @@ export default function UIPage() {
           >
             분석
           </button>
+          {!isProcessing && (
+             <div className="text-xs">
+               {isAuthChecking ? <span className="text-slate-400">확인 중...</span> : !userId ? <span className="text-red-500 font-bold">인증 필요</span> : <span className="text-green-600 font-bold">인증됨</span>}
+             </div>
+          )}
           {isProcessing && (
             <div className="flex items-center gap-3 text-blue-600 font-bold animate-pulse">
               <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
               <span>처리 중...</span>
             </div>
           )}
-          {!isProcessing && (
-             <div className="text-xs">
-               {isAuthChecking ? <span className="text-slate-400">확인 중...</span> : !userId ? <span className="text-red-500 font-bold">인증 필요</span> : <span className="text-green-600 font-bold">인증됨</span>}
-             </div>
-          )}
         </div>
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={handleDownload} 
-            disabled={!audioUrl || isProcessing}
-            className="px-5 py-2.5 text-sm font-bold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm"
-          >
-            다운로드
-          </button>
-          <button onClick={handleReset} className="px-5 py-2.5 text-sm font-semibold text-slate-400 hover:text-slate-800 transition-colors">초기화</button>
+        <div className="flex items-center gap-6 shrink-0">
           <button 
             onClick={handleEdit} 
             disabled={isProcessing || selections.length === 0} 
-            className="bg-blue-600 text-white px-8 py-2.5 rounded-xl font-bold hover:bg-blue-700 shadow-lg active:scale-95 transition-all disabled:opacity-40"
+            className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-emerald-700 shadow-md active:scale-95 transition-all disabled:opacity-40"
           >
             편집
+          </button>
+          <button
+            onClick={handleReset}
+            className="px-2 py-2 text-sm font-semibold text-slate-400 hover:text-slate-800 transition-colors"
+          >
+            초기화
           </button>
         </div>
       </div>
@@ -327,6 +325,17 @@ export default function UIPage() {
           <TranscriptEditor value={textValue} onChange={onTranscriptChange} />
         )}
       </section>
+
+      {/* 다운로드 버튼 (Transcript Editor 바로 아래, 우측) */}
+      <div className="flex justify-end">
+        <button 
+          onClick={handleDownload} 
+          disabled={!audioUrl || isProcessing}
+          className="px-6 py-3 text-sm font-bold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm"
+        >
+          다운로드
+        </button>
+      </div>
     </main>
   );
 }
