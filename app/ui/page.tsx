@@ -272,7 +272,7 @@ export default function UIPage() {
       {/* 상단 컨트롤 바 */}
       <div className="flex items-center justify-between bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-6">
-          <AudioUploader onFileSelect={handleFileSelect} />
+          <AudioUploader onFileSelect={handleFileSelect} disabled={isProcessing} />
           <button 
             onClick={handleStartSTT} 
             disabled={!currentAudioId || isProcessing || !userId} 

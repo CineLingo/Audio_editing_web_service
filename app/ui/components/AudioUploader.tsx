@@ -1,10 +1,17 @@
 'use client';
 
+import type { ChangeEvent } from 'react';
 import { UI_CONSTANTS } from '../ui.constants';
 import { formatBytes } from '../ui.utils';
 
-export function AudioUploader({ onFileSelect }: { onFileSelect: (file: File) => void }) {
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+export function AudioUploader({
+  onFileSelect,
+  disabled = false,
+}: {
+  onFileSelect: (file: File) => void;
+  disabled?: boolean;
+}) {
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const isAllowedType = file.type.startsWith('audio/') || file.type === 'video/mp4';
@@ -31,7 +38,8 @@ export function AudioUploader({ onFileSelect }: { onFileSelect: (file: File) => 
         type="file" 
         accept="audio/*,video/mp4" 
         onChange={handleChange}
-        className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+        disabled={disabled}
+        className="text-sm text-slate-500 disabled:opacity-40 disabled:cursor-not-allowed file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
       />
       <div className="text-[11px] text-slate-400">
         최대 {formatBytes(UI_CONSTANTS.MAX_AUDIO_UPLOAD_BYTES)}
