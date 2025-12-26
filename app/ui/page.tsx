@@ -131,7 +131,12 @@ export default function UIPage() {
     if (!userId || !currentAudioId || !currentStoragePath) return alert('업로드 정보가 부족합니다.');
     setIsProcessing(true);
     try {
-      const result = await requestSTT(userId, currentAudioId, currentStoragePath);
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("세션 토큰이 없습니다. 다시 로그인해 주세요.");
+
+      const result = await requestSTT(userId, currentAudioId, currentStoragePath, accessToken);
       let words = result?.transcript_chunks;
       if (typeof words === 'string') {
         try { words = JSON.parse(words); } catch (e) { console.error(e); }
@@ -154,7 +159,12 @@ export default function UIPage() {
     if (selections.length === 0) return alert('편집할 영역을 선택하거나 텍스트를 수정하세요.');
     setIsProcessing(true);
     try {
-      const result = await requestAudioEdit(userId, currentAudioId, textValue, selections);
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("세션 토큰이 없습니다. 다시 로그인해 주세요.");
+
+      const result = await requestAudioEdit(userId, currentAudioId, textValue, selections, accessToken);
       const requestId = result.request_id;
       alert('편집 요청이 접수되었습니다. 생성이 완료될 때까지 기다려주세요.');
 

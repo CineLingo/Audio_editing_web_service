@@ -9,27 +9,50 @@ interface AudioEditRequestResponse {
   runpod_raw: string;
 }
 
+function getSupabaseFunctionAuthHeaders(accessToken: string) {
+  const API_KEY =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!API_KEY) {
+    throw new Error(
+      "Missing Supabase env var: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY)."
+    );
+  }
+  if (!accessToken) {
+    // Edge Functions commonly expect a user JWT in Authorization (not a publishable/anon project key).
+    throw new Error("Missing user access token (JWT). Please log in again.");
+  }
+
+  return {
+    "Content-Type": "application/json",
+    // Supabase project key (publishable/anon). This is NOT a JWT.
+    apikey: API_KEY,
+    // User session JWT.
+    Authorization: `Bearer ${accessToken}`,
+  } as const;
+}
+
 /**
  * @param userId 현재 로그인한 사용자 UUID
  * @param audioId 원본 오디오 식별자 (input_audio_id)
  * @param fullText TranscriptEditor의 전체 텍스트 (target_text용)
  * @param selections 사용자가 정의한 편집 영역 리스트
+ * @param accessToken 로그인한 사용자 세션 access_token (JWT)
  */
 export async function requestAudioEdit(
   userId: string,
   audioId: string, 
   fullText: string, 
-  selections: Selection[]
+  selections: Selection[],
+  accessToken: string
 ): Promise<AudioEditRequestResponse> {
   // Edge Function 경로 (일반적으로 /functions/v1/파일명)
   const BASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const API_KEY =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!BASE_URL || !API_KEY) {
+  if (!BASE_URL) {
     throw new Error(
-      "Missing Supabase env vars: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY)."
+      "Missing Supabase env var: NEXT_PUBLIC_SUPABASE_URL."
     );
   }
 
@@ -47,10 +70,7 @@ export async function requestAudioEdit(
 
   const response = await fetch(API_ENDPOINT, {
     method: 'POST',
-    headers: { 
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${API_KEY}` // Edge Function 호출을 위한 인증 추가
-    },
+    headers: getSupabaseFunctionAuthHeaders(accessToken),
     body: JSON.stringify(payload),
   });
 
@@ -64,22 +84,20 @@ export async function requestAudioEdit(
 /**
  * 오디오 생성 및 STT 프로세스 실행
  */
-export async function requestSTT(userId: string, audioId: string, audioPathUrl: string) {
+export async function requestSTT(
+  userId: string,
+  audioId: string,
+  audioPathUrl: string,
+  accessToken: string
+) {
   const BASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const API_KEY =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!BASE_URL || !API_KEY) {
+  if (!BASE_URL) {
     throw new Error(
-      "Missing Supabase env vars: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY)."
+      "Missing Supabase env var: NEXT_PUBLIC_SUPABASE_URL."
     );
   }
 
-  const commonHeaders = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${API_KEY}`
-  };
+  const commonHeaders = getSupabaseFunctionAuthHeaders(accessToken);
 
   try {
     // --- STEP 1: create_audio 호출 (제공해주신 Edge Function) ---
