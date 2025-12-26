@@ -9,6 +9,8 @@ import { useSelections } from './hooks/useSelections';
 import { useTranscript } from './hooks/useTranscript';
 import { requestAudioEdit, requestSTT } from './api';
 import { LogoutButton } from '@/components/logout-button';
+import { UI_CONSTANTS } from './ui.constants';
+import { formatBytes } from './ui.utils';
 
 export default function UIPage() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -93,6 +95,11 @@ export default function UIPage() {
 
   const handleFileSelect = async (file: File) => {
     if (!userId) return alert('로그인이 필요합니다.');
+    const isAllowedType = file.type.startsWith('audio/') || file.type === 'video/mp4';
+    if (!isAllowedType) return alert('오디오 파일만 업로드할 수 있습니다.');
+    if (file.size > UI_CONSTANTS.MAX_AUDIO_UPLOAD_BYTES) {
+      return alert(`파일 용량이 너무 큽니다. 최대 ${formatBytes(UI_CONSTANTS.MAX_AUDIO_UPLOAD_BYTES)}까지 업로드할 수 있습니다.`);
+    }
     setIsProcessing(true);
     try {
       const ext = file.name.split(".").pop() ?? "wav";
