@@ -267,6 +267,48 @@ export default function UIPage() {
             <p className="text-xs text-slate-500 leading-relaxed"><b>[편집]</b> 버튼을 누르면 새로운 오디오가 생성됩니다.</p>
           </div>
         </div>
+
+
+        {/* 중요 팁 및 제약 사항 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+            <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+              지원 언어 및 작성 방식
+            </h4>
+            <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
+              <li>• 현재 <span className="text-blue-600 font-bold">한글</span>만 지원됩니다.</li>
+              <li>• 모든 숫자, 단위, 영어 등은 <b>한국어 발음</b> 그대로 작성해 주세요.</li>
+              <li className="text-slate-400 italic">(예: 100% → 백퍼센트 / Apple → 애플)</li>
+            </ul>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+            <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+              <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span>
+              권장 오디오 분량
+            </h4>
+            <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
+              <li>• <span className="text-indigo-600 font-bold">10~15초</span> 사이의 오디오가 가장 결과가 좋습니다.</li>
+              <li>• 5초 미만은 목소리가 변할 수 있고, 30초 이상은 생성이 실패할 수 있습니다.</li>
+            </ul>
+          </div>
+        </div>
+
+        {/* 추가 서비스 링크 */}
+        <div className="mt-8 pt-6 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
+          <p className="text-xs text-slate-500 italic">편집이 아닌 <b>음성 생성</b>을 원하시나요?</p>
+          <a 
+            href="https://myvoice.cinelingo-labs.com/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-lg hover:bg-slate-800 transition-all shadow-lg active:scale-95"
+          >
+            Cinelingo MyVoice 바로가기
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+          </a>
+        </div>
+
       </section>
 
       {/* 상단 컨트롤 바 */}
