@@ -1,5 +1,15 @@
 import type { WhisperWord, TranscriptToken, Selection } from './ui.types';
 
+export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const k = 1024;
+  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(k)));
+  const value = bytes / Math.pow(k, i);
+  const decimals = i === 0 ? 0 : value < 10 ? 2 : 1;
+  return `${value.toFixed(decimals)} ${units[i]}`;
+}
+
 export function whisperToInitialTokens(words: WhisperWord[]): TranscriptToken[] {
   return words.map((w) => ({
     id: crypto.randomUUID(),

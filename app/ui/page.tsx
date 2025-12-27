@@ -9,6 +9,8 @@ import { useSelections } from './hooks/useSelections';
 import { useTranscript } from './hooks/useTranscript';
 import { requestAudioEdit, requestSTT } from './api';
 import { LogoutButton } from '@/components/logout-button';
+import { UI_CONSTANTS } from './ui.constants';
+import { formatBytes } from './ui.utils';
 
 export default function UIPage() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -93,6 +95,11 @@ export default function UIPage() {
 
   const handleFileSelect = async (file: File) => {
     if (!userId) return alert('로그인이 필요합니다.');
+    const isAllowedType = file.type.startsWith('audio/') || file.type === 'video/mp4';
+    if (!isAllowedType) return alert('오디오 파일만 업로드할 수 있습니다.');
+    if (file.size > UI_CONSTANTS.MAX_AUDIO_UPLOAD_BYTES) {
+      return alert(`파일 용량이 너무 큽니다. 최대 ${formatBytes(UI_CONSTANTS.MAX_AUDIO_UPLOAD_BYTES)}까지 업로드할 수 있습니다.`);
+    }
     setIsProcessing(true);
     try {
       const ext = file.name.split(".").pop() ?? "wav";
@@ -124,7 +131,12 @@ export default function UIPage() {
     if (!userId || !currentAudioId || !currentStoragePath) return alert('업로드 정보가 부족합니다.');
     setIsProcessing(true);
     try {
-      const result = await requestSTT(userId, currentAudioId, currentStoragePath);
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("세션 토큰이 없습니다. 다시 로그인해 주세요.");
+
+      const result = await requestSTT(userId, currentAudioId, currentStoragePath, accessToken);
       let words = result?.transcript_chunks;
       if (typeof words === 'string') {
         try { words = JSON.parse(words); } catch (e) { console.error(e); }
@@ -147,7 +159,12 @@ export default function UIPage() {
     if (selections.length === 0) return alert('편집할 영역을 선택하거나 텍스트를 수정하세요.');
     setIsProcessing(true);
     try {
-      const result = await requestAudioEdit(userId, currentAudioId, textValue, selections);
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("세션 토큰이 없습니다. 다시 로그인해 주세요.");
+
+      const result = await requestAudioEdit(userId, currentAudioId, textValue, selections, accessToken);
       const requestId = result.request_id;
       alert('편집 요청이 접수되었습니다. 생성이 완료될 때까지 기다려주세요.');
 
@@ -222,67 +239,8 @@ export default function UIPage() {
     <main className="flex flex-col gap-6 p-8 max-w-5xl mx-auto min-h-screen">
       <LogoutButton label="로그아웃" variant="outline" size="sm" className="fixed top-4 right-4 z-50" />
 
-      {/* 상단 컨트롤 바 */}
-      <div className="flex items-center justify-between bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-6">
-          <AudioUploader onFileSelect={handleFileSelect} />
-          <button 
-            onClick={handleStartSTT} 
-            disabled={!currentAudioId || isProcessing || !userId} 
-            className="px-6 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 disabled:opacity-30 transition-all shadow-md active:scale-95"
-          >
-            분석
-          </button>
-          {isProcessing && (
-            <div className="flex items-center gap-3 text-blue-600 font-bold animate-pulse">
-              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-              <span>처리 중...</span>
-            </div>
-          )}
-          {!isProcessing && (
-             <div className="text-xs">
-               {isAuthChecking ? <span className="text-slate-400">확인 중...</span> : !userId ? <span className="text-red-500 font-bold">인증 필요</span> : <span className="text-green-600 font-bold">인증됨</span>}
-             </div>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={handleDownload} 
-            disabled={!audioUrl || isProcessing}
-            className="px-5 py-2.5 text-sm font-bold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm"
-          >
-            다운로드
-          </button>
-          <button onClick={handleReset} className="px-5 py-2.5 text-sm font-semibold text-slate-400 hover:text-slate-800 transition-colors">초기화</button>
-          <button 
-            onClick={handleEdit} 
-            disabled={isProcessing || selections.length === 0} 
-            className="bg-blue-600 text-white px-8 py-2.5 rounded-xl font-bold hover:bg-blue-700 shadow-lg active:scale-95 transition-all disabled:opacity-40"
-          >
-            편집
-          </button>
-        </div>
-      </div>
-
-      {/* 파형 섹션 */}
-      <section className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm bg-white p-1">
-        <AudioWaveform selections={selections} setSelections={setSelections} audioUrl={audioUrl} />
-      </section>
-
-      {/* 텍스트 에디터 섹션 */}
-      <section className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
-        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest">Transcript Editor</h3>
-        {isProcessing ? (
-          <div className="h-48 w-full rounded-xl border-2 border-dashed border-slate-100 flex items-center justify-center text-slate-400 bg-slate-50/50 text-sm">
-            데이터를 처리하고 있습니다...
-          </div>
-        ) : (
-          <TranscriptEditor value={textValue} onChange={onTranscriptChange} />
-        )}
-      </section>
-
       {/* 가이드 설명서 섹션 */}
-      <section className="bg-slate-50 p-8 rounded-3xl border border-slate-200 mt-4">
+      <section className="bg-slate-50 p-8 rounded-3xl border border-slate-200">
         <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
           <span className="flex items-center justify-center w-6 h-6 bg-slate-900 text-white text-xs rounded-full">?</span>
           이용 가이드
@@ -310,6 +268,74 @@ export default function UIPage() {
           </div>
         </div>
       </section>
+
+      {/* 상단 컨트롤 바 */}
+      <div className="flex items-center justify-between bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-6 min-w-0">
+          <AudioUploader onFileSelect={handleFileSelect} disabled={isProcessing} />
+          <button 
+            onClick={handleStartSTT} 
+            disabled={!currentAudioId || isProcessing || !userId} 
+            className="px-6 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 disabled:opacity-30 transition-all shadow-md active:scale-95"
+          >
+            분석
+          </button>
+          {!isProcessing && (
+             <div className="text-xs">
+               {isAuthChecking ? <span className="text-slate-400">확인 중...</span> : !userId ? <span className="text-red-500 font-bold">인증 필요</span> : <span className="text-green-600 font-bold">인증됨</span>}
+             </div>
+          )}
+          {isProcessing && (
+            <div className="flex items-center gap-3 text-blue-600 font-bold animate-pulse">
+              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              <span>처리 중...</span>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-6 shrink-0">
+          <button 
+            onClick={handleEdit} 
+            disabled={isProcessing || selections.length === 0} 
+            className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-emerald-700 shadow-md active:scale-95 transition-all disabled:opacity-40"
+          >
+            편집
+          </button>
+          <button
+            onClick={handleReset}
+            className="px-2 py-2 text-sm font-semibold text-slate-400 hover:text-slate-800 transition-colors"
+          >
+            초기화
+          </button>
+        </div>
+      </div>
+
+      {/* 파형 섹션 */}
+      <section className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm bg-white p-1">
+        <AudioWaveform selections={selections} setSelections={setSelections} audioUrl={audioUrl} />
+      </section>
+
+      {/* 텍스트 에디터 섹션 */}
+      <section className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
+        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest">Transcript Editor</h3>
+        {isProcessing ? (
+          <div className="h-48 w-full rounded-xl border-2 border-dashed border-slate-100 flex items-center justify-center text-slate-400 bg-slate-50/50 text-sm">
+            데이터를 처리하고 있습니다...
+          </div>
+        ) : (
+          <TranscriptEditor value={textValue} onChange={onTranscriptChange} />
+        )}
+      </section>
+
+      {/* 다운로드 버튼 (Transcript Editor 바로 아래, 우측) */}
+      <div className="flex justify-end">
+        <button 
+          onClick={handleDownload} 
+          disabled={!audioUrl || isProcessing}
+          className="px-6 py-3 text-sm font-bold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm"
+        >
+          다운로드
+        </button>
+      </div>
     </main>
   );
 }
