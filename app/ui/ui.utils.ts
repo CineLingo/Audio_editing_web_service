@@ -104,3 +104,24 @@ export function getAutoSelectionsFromDiff(
 
   return autoSelections;
 }
+
+export async function getWaveformData(audioUrl: string, samples: number = 1000): Promise<number[]> {
+  const response = await fetch(audioUrl);
+  const arrayBuffer = await response.arrayBuffer();
+  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+  const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+  
+  const rawData = audioBuffer.getChannelData(0); // 첫 번째 채널 사용
+  const blockSize = Math.floor(rawData.length / samples);
+  const filteredData = [];
+
+  for (let i = 0; i < samples; i++) {
+    let blockStart = blockSize * i;
+    let sum = 0;
+    for (let j = 0; j < blockSize; j++) {
+      sum = sum + Math.abs(rawData[blockStart + j]);
+    }
+    filteredData.push(sum / blockSize); // 평균 진폭
+  }
+  return filteredData;
+}

@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { Selection } from '../ui.types';
 import { UI_CONSTANTS } from '../ui.constants';
 import { useAudio } from '../hooks/useAudio';
-import { SelectionLayer } from './SelectionLayer'; // SelectionLayer 사용 시
+import { SelectionLayer } from './SelectionLayer';
+import { getWaveformData } from '../ui.utils'; // utils에 아래 함수를 추가해야 합니다.
 
 export function AudioWaveform({
   selections,
@@ -18,11 +19,23 @@ export function AudioWaveform({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pxPerSec, setPxPerSec] = useState(UI_CONSTANTS.DEFAULT_PIXELS_PER_SECOND);
   const [isDraggingPlayhead, setIsDraggingPlayhead] = useState(false);
+  const [waveformData, setWaveformData] = useState<number[]>([]);
+  
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   
   const { isPlaying, playAll, playSegment, pause, loadAudio, currentTime, duration, seek } = useAudio();
 
-  useEffect(() => { if (audioUrl) loadAudio(audioUrl); }, [audioUrl, loadAudio]);
+  // 오디오 로드 및 파형 데이터 추출
+  useEffect(() => {
+    if (audioUrl) {
+      loadAudio(audioUrl);
+      // 오디오에서 약 2000개의 샘플 포인트를 추출 (해상도 조절 가능)
+      getWaveformData(audioUrl, 2000)
+        .then(data => setWaveformData(data))
+        .catch(err => console.error("Waveform error:", err));
+    }
+  }, [audioUrl, loadAudio]);
 
   const selectedSelection = useMemo(() => selections.find(s => s.id === selectedId), [selections, selectedId]);
   const totalWidth = Math.max(1000, duration * pxPerSec);
@@ -31,6 +44,33 @@ export function AudioWaveform({
     selections.find(s => currentTime >= s.absStart && currentTime <= s.absEnd),
     [selections, currentTime]
   );
+
+  // 파형 캔버스 렌더링
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || waveformData.length === 0) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = totalWidth * dpr;
+    canvas.height = UI_CONSTANTS.WAVEFORM_HEIGHT * dpr;
+    ctx.scale(dpr, dpr);
+
+    ctx.clearRect(0, 0, totalWidth, UI_CONSTANTS.WAVEFORM_HEIGHT);
+    
+    // 파형 스타일 설정
+    ctx.fillStyle = '#cbd5e1'; // slate-300
+    const barWidth = totalWidth / waveformData.length;
+    const middle = UI_CONSTANTS.WAVEFORM_HEIGHT / 2;
+
+    waveformData.forEach((val, i) => {
+      const x = i * barWidth;
+      const barHeight = val * UI_CONSTANTS.WAVEFORM_HEIGHT * 1.5; // 증폭률 조정
+      ctx.fillRect(x, middle - barHeight / 2, barWidth * 0.8, barHeight);
+    });
+  }, [waveformData, totalWidth]);
 
   const getPlayheadX = () => {
     if (!activeSelection) return currentTime * pxPerSec;
@@ -101,6 +141,14 @@ export function AudioWaveform({
         className="relative w-full overflow-x-auto rounded-lg bg-slate-50 border border-slate-200 select-none custom-scrollbar" 
       >
         <div className="relative" style={{ height: UI_CONSTANTS.WAVEFORM_HEIGHT, width: totalWidth }}>
+          {/* 파형 캔버스 레이어 */}
+          <canvas
+            ref={canvasRef}
+            className="absolute inset-0 pointer-events-none"
+            style={{ width: totalWidth, height: UI_CONSTANTS.WAVEFORM_HEIGHT }}
+          />
+
+          {/* 재생 헤드 */}
           <div 
             className="absolute top-0 bottom-0 w-[2px] bg-red-600 z-50 cursor-grab active:cursor-grabbing will-change-[left]" 
             style={{ left: getPlayheadX() }} 
@@ -113,7 +161,6 @@ export function AudioWaveform({
             {renderRulers()}
           </div>
 
-          {/* SelectionLayer를 사용하여 하위 아이템 및 인터랙션 위임 */}
           <SelectionLayer 
             selections={selections} 
             setSelections={setSelections} 
