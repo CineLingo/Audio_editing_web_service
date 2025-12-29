@@ -318,7 +318,7 @@ export default function UIPage() {
           <button 
             onClick={handleStartSTT} 
             disabled={!currentAudioId || isProcessing || !userId} 
-            className="px-6 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 disabled:opacity-30 transition-all shadow-md active:scale-95"
+            className="px-6 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-600 disabled:opacity-30 transition-all shadow-md active:scale-95"
           >
             분석
           </button>
@@ -335,13 +335,6 @@ export default function UIPage() {
           )}
         </div>
         <div className="flex items-center gap-6 shrink-0">
-          <button 
-            onClick={handleEdit} 
-            disabled={isProcessing || selections.length === 0} 
-            className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-emerald-700 shadow-md active:scale-95 transition-all disabled:opacity-40"
-          >
-            편집
-          </button>
           <button
             onClick={handleReset}
             className="px-2 py-2 text-sm font-semibold text-slate-400 hover:text-slate-800 transition-colors"
@@ -357,7 +350,7 @@ export default function UIPage() {
       </section>
 
       {/* 텍스트 에디터 섹션 */}
-      <section className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
+      <section className="relative bg-white p-6 pb-16 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
         <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest">Transcript Editor</h3>
         {isProcessing ? (
           <div className="h-48 w-full rounded-xl border-2 border-dashed border-slate-100 flex items-center justify-center text-slate-400 bg-slate-50/50 text-sm">
@@ -366,6 +359,13 @@ export default function UIPage() {
         ) : (
           <TranscriptEditor value={textValue} onChange={onTranscriptChange} />
         )}
+        <button
+          onClick={handleEdit}
+          disabled={isProcessing || selections.length === 0}
+          className="absolute bottom-4 right-4 bg-emerald-600 text-white px-5 py-2 rounded-lg font-bold hover:bg-emerald-700 shadow-md active:scale-95 transition-all disabled:opacity-40"
+        >
+          편집
+        </button>
       </section>
 
       {/* 다운로드 버튼 (Transcript Editor 바로 아래, 우측) */}
