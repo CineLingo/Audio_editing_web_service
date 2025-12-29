@@ -270,34 +270,41 @@ export default function UIPage() {
 
 
         {/* 중요 팁 및 제약 사항 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-            <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
-              지원 언어 및 작성 방식
-            </h4>
-            <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
-              <li>• 현재 <span className="text-blue-600 font-bold">한글</span>만 지원됩니다.</li>
-              <li>• 모든 숫자, 단위, 영어 등은 <b>한국어 발음</b> 그대로 작성해 주세요.</li>
-              <li className="text-slate-400 italic">(예: 100% → 백퍼센트 / Apple → 애플)</li>
-            </ul>
-          </div>
+        <div className="mt-6">
+          <div className="h-px w-full bg-slate-200" />
+          <div className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex h-full flex-col gap-3">
+              <div className="flex-1 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+                <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                  지원 언어 및 작성 방식
+                </h4>
+                <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
+                  <li>• 현재 <span className="text-blue-600 font-bold">한글</span>만 지원됩니다.</li>
+                  <li>• 모든 숫자, 단위, 영어 등은 <b>한국어 발음</b> 그대로 작성해 주세요.</li>
+                  <li className="text-slate-400 italic">(예: 100% → 백퍼센트 / Apple → 애플)</li>
+                </ul>
+              </div>
+            </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-            <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span>
-              권장 오디오 분량
-            </h4>
-            <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
-              <li>• <span className="text-indigo-600 font-bold">10~15초</span> 사이의 오디오가 가장 결과가 좋습니다.</li>
-              <li>• 5초 미만은 목소리가 변할 수 있고, 30초 이상은 생성이 실패할 수 있습니다.</li>
-            </ul>
+            <div className="flex h-full flex-col gap-3">
+              <div className="flex-1 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+                <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span>
+                  권장 오디오 분량
+                </h4>
+                <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
+                  <li>• <span className="text-indigo-600 font-bold">10~15초</span> 사이의 오디오가 가장 결과가 좋습니다.</li>
+                  <li>• 5초 미만은 목소리가 변할 수 있고, 30초 이상은 생성이 실패할 수 있습니다.</li>
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* 추가 서비스 링크 */}
-        <div className="mt-8 pt-6 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-slate-500 italic">편집이 아닌 <b>음성 생성</b>을 원하시나요?</p>
+        <div className="mt-8 pt-6 border-t border-slate-200 flex items-center justify-end gap-4 flex-wrap">
+          <p className="text-sm text-slate-500 whitespace-nowrap">편집이 아닌 <b>음성 생성</b>을 원하시나요?</p>
           <a 
             href="https://myvoice.cinelingo-labs.com/" 
             target="_blank" 
