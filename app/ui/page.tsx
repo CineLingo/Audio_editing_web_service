@@ -208,11 +208,8 @@ export default function UIPage() {
 
   const handleReset = () => {
     if (confirm('모든 작업 내용을 초기화하시겠습니까?')) {
-      setAudioUrl(null);
-      setCurrentAudioId(null);
-      setCurrentStoragePath(null);
-      setSelections([]);
-      resetTranscript();
+      // "새로고침"처럼 완전히 초기 상태로 되돌리기
+      window.location.reload();
     }
   };
 
