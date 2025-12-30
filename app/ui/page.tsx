@@ -7,7 +7,7 @@ import { AudioWaveform } from './components/AudioWaveform';
 import { TranscriptEditor } from './components/TranscriptEditor';
 import { useSelections } from './hooks/useSelections';
 import { useTranscript } from './hooks/useTranscript';
-import { requestAudioEdit, requestSTT } from './api';
+import { getSupabaseFunctionAuthHeaders, requestAudioEdit, requestSTT } from './api';
 import { LogoutButton } from '@/components/logout-button';
 import { UI_CONSTANTS } from './ui.constants';
 import { formatBytes } from './ui.utils';
@@ -107,18 +107,35 @@ export default function UIPage() {
       const { error: uploadError } = await supabase.storage.from("Audio_editing_bucket").upload(storage_path, file);
       if (uploadError) throw uploadError;
 
-      const { data: dbData, error: dbError } = await supabase.from("audios").insert({
-        user_id: userId,
-        audio_path_url: storage_path,
-        title: file.name
-      }).select().single();
+      // 업로드된 파일을 DB(audios)에 등록은 Edge Function(create_audio_new)에서 단 한 번만 수행
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("세션 토큰이 없습니다. 다시 로그인해 주세요.");
 
-      if (dbError) throw dbError;
+      const BASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!BASE_URL) throw new Error("Missing Supabase env var: NEXT_PUBLIC_SUPABASE_URL.");
 
-      const fullUrl = getFullAudioUrl(storage_path);
-      setAudioUrl(fullUrl);
-      setCurrentAudioId(dbData.audio_id);
+      const createRes = await fetch(`${BASE_URL}/functions/v1/create_audio_new`, {
+        method: "POST",
+        headers: getSupabaseFunctionAuthHeaders(accessToken),
+        body: JSON.stringify({
+          user_id: userId,
+          storage_path,
+          title: file.name,
+          duration: 0,
+        }),
+      });
+
+      if (!createRes.ok) {
+        const errorData = await createRes.json().catch(() => ({}));
+        throw new Error(errorData.error || "create_audio_new 실패");
+      }
+
+      const created = await createRes.json();
+      setCurrentAudioId(created.audio_id);
       setCurrentStoragePath(storage_path);
+      setAudioUrl(created.audio_path_url ?? getFullAudioUrl(storage_path));
       alert('파일이 업로드되었습니다.');
     } catch (err: any) {
       alert('업로드 실패: ' + err.message);
@@ -128,7 +145,7 @@ export default function UIPage() {
   };
 
   const handleStartSTT = async () => {
-    if (!userId || !currentAudioId || !currentStoragePath) return alert('업로드 정보가 부족합니다.');
+    if (!userId || !currentAudioId) return alert('업로드 정보가 부족합니다.');
     setIsProcessing(true);
     try {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -136,7 +153,7 @@ export default function UIPage() {
       const accessToken = sessionData.session?.access_token;
       if (!accessToken) throw new Error("세션 토큰이 없습니다. 다시 로그인해 주세요.");
 
-      const result = await requestSTT(userId, currentAudioId, currentStoragePath, accessToken);
+      const result = await requestSTT(userId, currentAudioId, accessToken);
       let words = result?.transcript_chunks;
       if (typeof words === 'string') {
         try { words = JSON.parse(words); } catch (e) { console.error(e); }

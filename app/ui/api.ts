@@ -9,7 +9,7 @@ interface AudioEditRequestResponse {
   runpod_raw: string;
 }
 
-function getSupabaseFunctionAuthHeaders(accessToken: string) {
+export function getSupabaseFunctionAuthHeaders(accessToken: string) {
   const API_KEY =
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -87,7 +87,6 @@ export async function requestAudioEdit(
 export async function requestSTT(
   userId: string,
   audioId: string,
-  audioPathUrl: string,
   accessToken: string
 ) {
   const BASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -100,36 +99,14 @@ export async function requestSTT(
   const commonHeaders = getSupabaseFunctionAuthHeaders(accessToken);
 
   try {
-    // --- STEP 1: create_audio 호출 (제공해주신 Edge Function) ---
-    console.log("1. create_audio 호출 중...");
-    const createAudioResponse = await fetch(`${BASE_URL}/functions/v1/create_audio`, {
-      method: 'POST',
-      headers: commonHeaders,
-      body: JSON.stringify({
-        user_id: userId,
-        storage_path: audioPathUrl, // Edge Function 내부 로직에 맞춰 전달
-        title: "Uploaded Audio",      // 선택 사항
-        duration: 0                   // 선택 사항 (0 또는 실제 길이)
-      }),
-    });
-
-    if (!createAudioResponse.ok) {
-      const errorData = await createAudioResponse.json();
-      throw new Error(`create_audio 실패: ${errorData.error || JSON.stringify(errorData)}`);
-    }
-
-    const createResult = await createAudioResponse.json();
-    // Edge Function에서 반환된 실제 DB의 audio_id를 사용합니다.
-    const dbAudioId = createResult.audio_id;
-
-    // --- STEP 2: STT (clever-processor) 호출 ---
-    console.log("2. clever-processor 호출 중...");
+    // --- STT (clever-processor) 호출 ---
+    console.log("clever-processor 호출 중...");
     const sttResponse = await fetch(`${BASE_URL}/functions/v1/clever-processor`, {
       method: 'POST',
       headers: commonHeaders,
       body: JSON.stringify({
         user_id: userId,
-        input_audio_id: dbAudioId // 생성된 실제 DB ID 전달
+        input_audio_id: audioId
       }),
     });
 
