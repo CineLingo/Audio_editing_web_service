@@ -44,6 +44,23 @@ export function useAudio() {
 
   const loadAudio = useCallback((url: string) => {
     if (audioRef.current) {
+      // 소스가 바뀌면 항상 "정지 + 처음"으로 리셋
+      // (히스토리 이동/편집 결과 로드 시 UI가 '전체 재생'으로 돌아가야 함)
+      try {
+        audioRef.current.pause();
+      } catch {
+        // ignore
+      }
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+      audioRef.current.playbackRate = 1.0;
+      try {
+        audioRef.current.currentTime = 0;
+      } catch {
+        // some browsers may throw if metadata not loaded yet
+      }
+      setIsPlaying(false);
+      setCurrentTime(0);
+
       audioRef.current.src = url;
       audioRef.current.load();
     }
