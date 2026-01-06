@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from "@/lib/supabase/client"; 
 import { AudioUploader } from './components/AudioUploader';
 import { AudioWaveform } from './components/AudioWaveform';
@@ -20,19 +20,37 @@ type AudioHistoryItem = {
   transcript_chunks: any;
 };
 
+type AudioJobRow = {
+  request_id: string;
+  status: 'queued' | 'processing' | 'succeeded' | 'failed' | string;
+  output_audio_id: string | null;
+  error_log: string | null;
+};
+
+type ToastType = 'info' | 'success' | 'warning' | 'error';
+type Toast = {
+  id: string;
+  type: ToastType;
+  message: string;
+};
+
 export default function UIPage() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [currentAudioId, setCurrentAudioId] = useState<string | null>(null);
-  const [currentStoragePath, setCurrentStoragePath] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
 
   const [historyItems, setHistoryItems] = useState<AudioHistoryItem[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   
   const supabase = createClient();
   const { selections, setSelections } = useSelections();
+  const activeJobChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const jobWatchIdRef = useRef(0);
 
   const { 
     textValue, 
@@ -42,6 +60,24 @@ export default function UIPage() {
     processAudio, 
     resetTranscript 
   } = useTranscript(selections, setSelections);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((x) => x.id !== id));
+  }, []);
+
+  const clearToasts = useCallback(() => {
+    setToasts([]);
+  }, []);
+
+  const pushToast = useCallback(
+    (toast: Omit<Toast, 'id'>) => {
+      const id = crypto.randomUUID();
+      const next: Toast = { id, ...toast };
+      setToasts((prev) => [next, ...prev].slice(0, 5));
+      return id;
+    },
+    [dismissToast]
+  );
 
   const dtf = useMemo(() => {
     try {
@@ -89,7 +125,11 @@ export default function UIPage() {
       if (session?.user) setUserId(session.user.id);
       else setUserId(null);
     });
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      activeJobChannelRef.current?.unsubscribe();
+      activeJobChannelRef.current = null;
+    };
   }, [supabase]);
 
   const fetchHistory = useCallback(
@@ -186,12 +226,12 @@ export default function UIPage() {
           resetTranscript();
         }
       } catch (e: any) {
-        alert(`히스토리 로드 실패: ${e?.message ?? String(e)}`);
+        pushToast({ type: 'error', message: `히스토리 로드 실패: ${e?.message ?? String(e)}` });
       } finally {
         setIsProcessing(false);
       }
     },
-    [currentAudioId, processAudio, resetTranscript, setSelections, setIsProcessing, supabase]
+    [currentAudioId, processAudio, pushToast, resetTranscript, setSelections, setIsProcessing, supabase]
   );
 
   const pollForFinalAudio = async (audioId: string): Promise<any> => {
@@ -219,7 +259,6 @@ export default function UIPage() {
   const loadNewAudioData = async (audioId: string, audioPath: string, transcriptChunks: any) => {
     const fullUrl = getFullAudioUrl(audioPath);
     setCurrentAudioId(audioId);
-    setCurrentStoragePath(audioPath);
     setAudioUrl(fullUrl);
     
     let words = transcriptChunks;
@@ -234,11 +273,21 @@ export default function UIPage() {
   };
 
   const handleFileSelect = async (file: File) => {
-    if (!userId) return alert('로그인이 필요합니다.');
+    if (!userId) {
+      pushToast({ type: 'error', message: '로그인이 필요합니다.' });
+      return;
+    }
     const isAllowedType = file.type.startsWith('audio/') || file.type === 'video/mp4';
-    if (!isAllowedType) return alert('오디오 파일만 업로드할 수 있습니다.');
+    if (!isAllowedType) {
+      pushToast({ type: 'warning', message: '오디오 파일만 업로드할 수 있습니다.' });
+      return;
+    }
     if (file.size > UI_CONSTANTS.MAX_AUDIO_UPLOAD_BYTES) {
-      return alert(`파일 용량이 너무 큽니다. 최대 ${formatBytes(UI_CONSTANTS.MAX_AUDIO_UPLOAD_BYTES)}까지 업로드할 수 있습니다.`);
+      pushToast({
+        type: 'warning',
+        message: `파일 용량이 너무 큽니다. 최대 ${formatBytes(UI_CONSTANTS.MAX_AUDIO_UPLOAD_BYTES)}까지 업로드할 수 있습니다.`,
+      });
+      return;
     }
     setIsProcessing(true);
     try {
@@ -274,19 +323,24 @@ export default function UIPage() {
 
       const created = await createRes.json();
       setCurrentAudioId(created.audio_id);
-      setCurrentStoragePath(storage_path);
       setAudioUrl(created.audio_path_url ?? getFullAudioUrl(storage_path));
-      alert('파일이 업로드되었습니다.');
+      pushToast({ type: 'success', message: '파일이 업로드되었습니다.' });
     } catch (err: any) {
-      alert('업로드 실패: ' + err.message);
+      pushToast({ type: 'error', message: '업로드 실패: ' + err.message });
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleStartSTT = async () => {
-    if (!userId || !currentAudioId) return alert('업로드 정보가 부족합니다.');
-    if (!audioUrl) return alert('오디오 URL이 없습니다. 다시 업로드해 주세요.');
+    if (!userId || !currentAudioId) {
+      pushToast({ type: 'warning', message: '업로드 정보가 부족합니다.' });
+      return;
+    }
+    if (!audioUrl) {
+      pushToast({ type: 'warning', message: '오디오 URL이 없습니다. 다시 업로드해 주세요.' });
+      return;
+    }
     setIsProcessing(true);
     try {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -303,20 +357,33 @@ export default function UIPage() {
         await processAudio(audioUrl!, words);
         // STT 완료 시 audios.transcript_chunks가 업데이트되므로, 히스토리 배지(분석 전/완료) 반영을 위해 재조회
         await fetchHistory(currentAudioId);
-        alert('분석 완료');
+        pushToast({ type: 'success', message: '분석 완료' });
       } else {
-        alert('STT 데이터 로드 실패');
+        pushToast({ type: 'error', message: 'STT 데이터 로드 실패' });
       }
     } catch (err: any) {
-      alert('STT 요청 오류: ' + err.message);
+      pushToast({ type: 'error', message: 'STT 요청 오류: ' + err.message });
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleEdit = async () => {
-    if (!userId || !currentAudioId) return alert('로그인 정보 또는 오디오 정보가 없습니다.');
-    if (selections.length === 0) return alert('편집할 영역을 선택하거나 텍스트를 수정하세요.');
+    if (!userId || !currentAudioId) {
+      pushToast({ type: 'error', message: '로그인 정보 또는 오디오 정보가 없습니다.' });
+      return;
+    }
+    if (selections.length === 0) {
+      pushToast({ type: 'warning', message: '편집할 영역을 선택하거나 텍스트를 수정하세요.' });
+      return;
+    }
+
+    // cancel any previous watchers
+    jobWatchIdRef.current += 1;
+    const watchId = jobWatchIdRef.current;
+    activeJobChannelRef.current?.unsubscribe();
+    activeJobChannelRef.current = null;
+
     setIsProcessing(true);
     try {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -326,51 +393,153 @@ export default function UIPage() {
 
       const result = await requestAudioEdit(userId, currentAudioId, textValue, selections, accessToken);
       const requestId = result.request_id;
-      alert('편집 요청이 접수되었습니다. 생성이 완료될 때까지 기다려주세요.');
+      const fallbackOutputAudioId = result.output_audio_id ?? null;
 
-      const channel = supabase
-        .channel(`job-${requestId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'audio_jobs',
-            filter: `request_id=eq.${requestId}`
-          },
-          async (payload) => {
-            const updatedJob = payload.new;
-            if (updatedJob.status === 'succeeded') {
-              try {
-                const finalAudio = await pollForFinalAudio(updatedJob.output_audio_id);
-                await loadNewAudioData(finalAudio.audio_id, finalAudio.audio_path_url, finalAudio.transcript_chunks);
-                alert('편집이 완료되어 새로운 오디오로 교체되었습니다.');
-                setIsProcessing(false);
-                channel.unsubscribe();
-              } catch (pollErr: any) {
-                alert(pollErr.message);
-                setIsProcessing(false);
-                channel.unsubscribe();
-              }
-            } else if (updatedJob.status === 'failed') {
-              alert(`편집 실패: ${updatedJob.error_log}`);
+      pushToast({
+        type: 'info',
+        message: '편집 요청이 접수되었습니다. 생성이 완료될 때까지 기다려주세요.',
+      });
+
+      let settled = false;
+      const settleIfActive = () => watchId === jobWatchIdRef.current;
+
+      const handleJobTerminalState = async (job: Partial<AudioJobRow>) => {
+        if (!settleIfActive()) return;
+        if (settled) return;
+
+        const status = job.status;
+        if (status === 'succeeded') {
+          settled = true;
+          try {
+            const outputId = job.output_audio_id ?? fallbackOutputAudioId;
+            if (!outputId) throw new Error('output_audio_id가 없습니다.');
+            const finalAudio = await pollForFinalAudio(outputId);
+            await loadNewAudioData(finalAudio.audio_id, finalAudio.audio_path_url, finalAudio.transcript_chunks);
+            pushToast({ type: 'success', message: '편집이 완료되어 새로운 오디오로 교체되었습니다.' });
+          } catch (pollErr: any) {
+            pushToast({ type: 'error', message: pollErr?.message ?? String(pollErr) });
+          } finally {
+            if (settleIfActive()) {
               setIsProcessing(false);
-              channel.unsubscribe();
+              activeJobChannelRef.current?.unsubscribe();
+              activeJobChannelRef.current = null;
             }
           }
+          return;
+        }
+
+        if (status === 'failed') {
+          settled = true;
+          pushToast({ type: 'error', message: `편집 실패: ${job.error_log ?? '(error_log 없음)'}` });
+          if (settleIfActive()) {
+            setIsProcessing(false);
+            activeJobChannelRef.current?.unsubscribe();
+            activeJobChannelRef.current = null;
+          }
+        }
+      };
+
+      // Realtime는 레이스(구독 전 완료) 또는 미설정일 수 있으므로:
+      // - INSERT/UPDATE 모두 감지
+      // - 구독 직후 즉시 1회 조회
+      // - fallback 폴링으로 최종 상태를 반드시 확인
+      const channel = supabase.channel(`job-${requestId}`);
+      activeJobChannelRef.current = channel;
+
+      const onJobChange = (payload: any) => {
+        const job = (payload?.new ?? payload?.record ?? null) as Partial<AudioJobRow> | null;
+        if (!job) return;
+        void handleJobTerminalState(job);
+      };
+
+      channel
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'audio_jobs', filter: `request_id=eq.${requestId}` },
+          onJobChange
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'audio_jobs', filter: `request_id=eq.${requestId}` },
+          onJobChange
         )
         .subscribe();
+
+      const fetchJobOnce = async () => {
+        const { data, error } = await supabase
+          .from('audio_jobs')
+          .select('request_id,status,output_audio_id,error_log')
+          .eq('request_id', requestId)
+          .maybeSingle();
+
+        if (error) {
+          // IMPORTANT: some projects allow realtime but deny SELECT via RLS. In that case we still want the UI to progress.
+          console.warn('audio_jobs select error', error);
+          return;
+        }
+
+        if (data) await handleJobTerminalState(data as AudioJobRow);
+      };
+
+      // 1) Kick off "direct" polling by output_audio_id if we have it (doesn't require reading audio_jobs)
+      if (fallbackOutputAudioId) {
+        void (async () => {
+          try {
+            const finalAudio = await pollForFinalAudio(fallbackOutputAudioId);
+            if (!settleIfActive() || settled) return;
+            settled = true;
+            await loadNewAudioData(finalAudio.audio_id, finalAudio.audio_path_url, finalAudio.transcript_chunks);
+            pushToast({ type: 'success', message: '편집이 완료되어 새로운 오디오로 교체되었습니다.' });
+          } catch (e: any) {
+            // Ignore; job polling below will surface failed/timeout. This path is best-effort.
+            console.warn('direct output_audio_id polling failed', e);
+          } finally {
+            if (settleIfActive() && settled) {
+              setIsProcessing(false);
+              activeJobChannelRef.current?.unsubscribe();
+              activeJobChannelRef.current = null;
+            }
+          }
+        })();
+      }
+
+      // 2) Immediate read-after-subscribe to avoid missing a terminal state that already exists
+      await fetchJobOnce();
+
+      // fallback polling (realtime miss / disabled 대비)
+      void (async () => {
+        const start = Date.now();
+        const timeout = 3 * 60 * 1000;
+
+        while (settleIfActive() && !settled && Date.now() - start < timeout) {
+          try {
+            await fetchJobOnce();
+          } catch (e) {
+            // ignore transient errors
+            console.warn('job polling error', e);
+          }
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+
+        if (settleIfActive() && !settled) {
+          settled = true;
+          pushToast({
+            type: 'warning',
+            message: '편집 결과를 기다리는 시간이 초과되었습니다. 히스토리 새로고침을 눌러 확인해 주세요.',
+          });
+          setIsProcessing(false);
+          activeJobChannelRef.current?.unsubscribe();
+          activeJobChannelRef.current = null;
+        }
+      })();
     } catch (err: any) {
-      alert('편집 요청 오류: ' + err.message);
+      pushToast({ type: 'error', message: '편집 요청 오류: ' + err.message });
       setIsProcessing(false);
     }
   };
 
   const handleReset = () => {
-    if (confirm('모든 작업 내용을 초기화하시겠습니까?')) {
-      // "새로고침"처럼 완전히 초기 상태로 되돌리기
-      window.location.reload();
-    }
+    setIsResetConfirmOpen(true);
   };
 
   const handleDownload = async () => {
@@ -387,7 +556,7 @@ export default function UIPage() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (error) {
-      alert('다운로드 중 오류가 발생했습니다.');
+      pushToast({ type: 'error', message: '다운로드 중 오류가 발생했습니다.' });
       console.error(error);
     }
   };
@@ -395,6 +564,98 @@ export default function UIPage() {
   return (
     <main className="min-h-screen">
       <LogoutButton label="로그아웃" variant="outline" size="sm" className="fixed top-4 right-4 z-50" />
+
+      {/* Toasts (non-blocking) */}
+      <div className="fixed top-16 right-4 z-50 flex w-[360px] max-w-[calc(100vw-2rem)] flex-col gap-2">
+        {toasts.length > 0 && (
+          <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg">
+            <div className="text-xs font-bold text-slate-600">알림 {toasts.length}개</div>
+            <button
+              type="button"
+              onClick={clearToasts}
+              className="rounded-md px-2 py-1 text-xs font-black text-slate-600 hover:bg-slate-50"
+            >
+              모두 닫기
+            </button>
+          </div>
+        )}
+        {toasts.map((t) => {
+          const style =
+            t.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+              : t.type === 'error'
+                ? 'border-red-200 bg-red-50 text-red-900'
+                : t.type === 'warning'
+                  ? 'border-amber-200 bg-amber-50 text-amber-900'
+                  : 'border-slate-200 bg-white text-slate-900';
+          return (
+            <div
+              key={t.id}
+              className={['rounded-xl border px-4 py-3 shadow-lg', style].join(' ')}
+              role="status"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="text-sm font-semibold leading-snug">{t.message}</div>
+                <button
+                  type="button"
+                  onClick={() => dismissToast(t.id)}
+                  className="shrink-0 rounded-md px-2 py-1 text-xs font-bold opacity-60 hover:opacity-100"
+                  aria-label="닫기"
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Reset confirm modal (non-blocking) */}
+      {isResetConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setIsResetConfirmOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-black text-slate-900">초기화</div>
+                <div className="mt-1 text-sm text-slate-600">모든 작업 내용을 초기화하시겠습니까?</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsResetConfirmOpen(false)}
+                className="rounded-lg px-2 py-1 text-xs font-bold text-slate-500 hover:text-slate-900"
+                aria-label="닫기"
+              >
+                X
+              </button>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsResetConfirmOpen(false)}
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsResetConfirmOpen(false);
+                  window.location.reload();
+                }}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800"
+              >
+                초기화
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mx-auto max-w-7xl p-8">
         <div className="flex gap-6 items-start">
