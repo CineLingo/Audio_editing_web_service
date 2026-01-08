@@ -69,7 +69,9 @@ export function SignUpForm({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/ui`,
+          // Ensure the email confirmation link returns to our app route
+          // that can exchange the auth code for a session.
+          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/ui`,
         },
       });
       if (error) throw error;
