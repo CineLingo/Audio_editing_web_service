@@ -563,8 +563,6 @@ export default function UIPage() {
 
   return (
     <main className="min-h-screen">
-      <LogoutButton label="로그아웃" variant="outline" size="sm" className="fixed top-4 right-4 z-50" />
-
       {/* Toasts (non-blocking) */}
       <div className="fixed top-16 right-4 z-50 flex w-[360px] max-w-[calc(100vw-2rem)] flex-col gap-2">
         {toasts.length > 0 && (
@@ -663,10 +661,18 @@ export default function UIPage() {
           <div className="flex-1 flex flex-col gap-6 min-w-0">
             {/* 가이드 설명서 섹션 */}
             <section className="bg-slate-50 p-8 rounded-3xl border border-slate-200">
-              <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-                <span className="flex items-center justify-center w-6 h-6 bg-slate-900 text-white text-xs rounded-full">?</span>
-                이용 가이드
-              </h3>
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <span className="flex items-center justify-center w-6 h-6 bg-slate-900 text-white text-xs rounded-full">?</span>
+                  이용 가이드
+                </h3>
+                <LogoutButton
+                  label="로그아웃"
+                  variant="outline"
+                  size="sm"
+                  className="border-slate-200 bg-white text-slate-900 shadow-sm hover:bg-slate-50 hover:text-slate-900 focus-visible:ring-slate-400/60"
+                />
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="flex flex-col gap-2">
                   <div className="text-blue-600 font-black text-xl">01</div>
@@ -730,7 +736,7 @@ export default function UIPage() {
                   href="https://myvoice.cinelingo-labs.com/" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-lg hover:bg-slate-800 transition-all shadow-lg active:scale-95"
+                  className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-900 shadow-sm transition-all hover:bg-slate-50 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/60"
                 >
                   Cinelingo MyVoice 바로가기
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
@@ -800,8 +806,23 @@ export default function UIPage() {
               <button 
                 onClick={handleDownload} 
                 disabled={!audioUrl || isProcessing}
-                className="px-6 py-3 text-sm font-bold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm"
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-bold text-white shadow-md transition-all hover:bg-slate-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 dark:focus-visible:ring-slate-500/60"
               >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 3v12" />
+                  <path d="M7 10l5 5 5-5" />
+                  <path d="M5 21h14" />
+                </svg>
                 다운로드
               </button>
             </div>
