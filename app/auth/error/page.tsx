@@ -34,8 +34,9 @@ export default function Page({
             <CardHeader>
               <CardTitle className="text-2xl">요청을 완료할 수 없어요</CardTitle>
               <CardDescription>
-                이메일 링크가 만료되었거나 유효하지 않을 수 있어요. 아래 버튼을
-                눌러 다시 진행해 주세요.
+                이메일 링크가 만료되었거나 유효하지 않을 수 있어요.
+                <br />
+                아래 버튼을 눌러 다시 진행해 주세요.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -46,19 +47,6 @@ export default function Page({
                 >
                   <Link href="/auth/login">로그인으로 돌아가기</Link>
                 </Button>
-
-                <Button asChild variant="outline" className="w-full">
-                  <Link href="/auth/sign-up">회원가입 다시 시도</Link>
-                </Button>
-
-                <div className="text-center text-sm">
-                  <Link
-                    href="/auth/forgot-password"
-                    className="underline underline-offset-4"
-                  >
-                    비밀번호 재설정 메일 다시 받기
-                  </Link>
-                </div>
               </div>
             </CardContent>
           </Card>
