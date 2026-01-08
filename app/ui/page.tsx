@@ -666,12 +666,25 @@ export default function UIPage() {
                   <span className="flex items-center justify-center w-6 h-6 bg-slate-900 text-white text-xs rounded-full">?</span>
                   이용 가이드
                 </h3>
-                <LogoutButton
-                  label="로그아웃"
-                  variant="outline"
-                  size="sm"
-                  className="border-slate-200 bg-white text-slate-900 shadow-sm hover:bg-slate-50 hover:text-slate-900 focus-visible:ring-slate-400/60"
-                />
+                <div className="flex items-center gap-2">
+                  {!isProcessing && (
+                    <div className="inline-flex h-8 items-center text-xs font-bold">
+                      {isAuthChecking ? (
+                        <span className="text-slate-400">확인 중...</span>
+                      ) : !userId ? (
+                        <span className="text-red-500">인증 필요</span>
+                      ) : (
+                        <span className="text-green-600">인증됨</span>
+                      )}
+                    </div>
+                  )}
+                  <LogoutButton
+                    label="로그아웃"
+                    variant="outline"
+                    size="sm"
+                    className="border-slate-200 bg-white text-slate-900 shadow-sm hover:bg-slate-50 hover:text-slate-900 focus-visible:ring-slate-400/60"
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="flex flex-col gap-2">
@@ -755,11 +768,6 @@ export default function UIPage() {
                 >
                   분석
                 </button>
-                {!isProcessing && (
-                   <div className="text-xs">
-                     {isAuthChecking ? <span className="text-slate-400">확인 중...</span> : !userId ? <span className="text-red-500 font-bold">인증 필요</span> : <span className="text-green-600 font-bold">인증됨</span>}
-                   </div>
-                )}
                 {isProcessing && (
                   <div className="flex items-center gap-3 text-blue-600 font-bold animate-pulse">
                     <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
