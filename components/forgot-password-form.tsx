@@ -38,7 +38,12 @@ export function ForgotPasswordForm({
       if (error) throw error;
       setSuccess(true);
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred");
+      // 사용자에게는 내부 에러 메시지/코드 노출 없이 안내만 보여줍니다.
+      setError(
+        error instanceof Error
+          ? "전송에 실패했어요. 이메일 주소를 확인하고 다시 시도해 주세요."
+          : "전송에 실패했어요. 잠시 후 다시 시도해 주세요.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -49,30 +54,34 @@ export function ForgotPasswordForm({
       {success ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Check Your Email</CardTitle>
-            <CardDescription>Password reset instructions sent</CardDescription>
+            <CardTitle className="text-2xl">이메일을 확인해 주세요</CardTitle>
+            <CardDescription>비밀번호 재설정 안내를 보냈어요</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              If you registered using your email and password, you will receive
-              a password reset email.
+              가입하신 이메일로 비밀번호 재설정 링크를 전송했어요. 몇 분 내로
+              도착하지 않으면 스팸함을 확인해 주세요.
             </p>
+            <div className="mt-4">
+              <Button asChild variant="outline" className="w-full">
+                <Link href="/auth/login">로그인으로 돌아가기</Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Reset Your Password</CardTitle>
+            <CardTitle className="text-2xl">비밀번호 재설정</CardTitle>
             <CardDescription>
-              Type in your email and we&apos;ll send you a link to reset your
-              password
+              이메일을 입력하면 비밀번호 재설정 링크를 보내드릴게요
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleForgotPassword}>
               <div className="flex flex-col gap-6">
                 <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">이메일</Label>
                   <Input
                     id="email"
                     type="email"
@@ -83,17 +92,21 @@ export function ForgotPasswordForm({
                   />
                 </div>
                 {error && <p className="text-sm text-red-500">{error}</p>}
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Sending..." : "Send reset email"}
+                <Button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all duration-300"
+                  disabled={isLoading}
+                >
+                  {isLoading ? "전송 중..." : "재설정 메일 보내기"}
                 </Button>
               </div>
               <div className="mt-4 text-center text-sm">
-                Already have an account?{" "}
+                이미 계정이 있으신가요?{" "}
                 <Link
                   href="/auth/login"
                   className="underline underline-offset-4"
                 >
-                  Login
+                  로그인
                 </Link>
               </div>
             </form>

@@ -16,6 +16,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+function localizeLoginErrorMessage(message: string) {
+  const normalized = message.trim();
+  if (normalized === "Invalid login credentials") {
+    return "이메일 또는 비밀번호가 올바르지 않아요.";
+  }
+  return message;
+}
+
 function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false" {...props}>
@@ -66,7 +74,11 @@ export function LoginForm({
       // Update this route to redirect to an authenticated route. The user already has an active session.
       router.push("/ui");
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred");
+      setError(
+        error instanceof Error
+          ? localizeLoginErrorMessage(error.message)
+          : "로그인에 실패했어요. 잠시 후 다시 시도해 주세요.",
+      );
     } finally {
       setIsLoading(false);
     }
