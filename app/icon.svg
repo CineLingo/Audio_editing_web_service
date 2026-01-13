@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Edit Voice favicon">
   <defs>
-    <!-- Brighter version of the site's blue→purple brand gradient -->
+    <!-- Same blue→purple brand gradient as "Edit Voice" (Tailwind: from-blue-600 to-purple-600) -->
     <linearGradient id="bg" x1="96" y1="64" x2="448" y2="448" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#60A5FA"/>
-      <stop offset="1" stop-color="#C084FC"/>
+      <stop offset="0" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#9333EA"/>
     </linearGradient>
   </defs>
 
