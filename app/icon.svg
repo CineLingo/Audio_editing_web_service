@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Edit Voice favicon">
+  <defs>
+    <!-- Brighter version of the site's blue→purple brand gradient -->
+    <linearGradient id="bg" x1="96" y1="64" x2="448" y2="448" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#60A5FA"/>
+      <stop offset="1" stop-color="#C084FC"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect x="32" y="32" width="448" height="448" rx="112" fill="url(#bg)"/>
+
+  <!-- Center "E" (exact Geist-Bold glyph outline from font/Geist/Geist-Bold.ttf) -->
+  <!--
+    Extracted from the font as SVG path data and centered using:
+      - bbox: x=74..576, y=-710..0
+      - scale: 0.38028169014084506
+      - translate: (132.40845070422534, 391)
+  -->
+  <path
+    fill="#FFFFFF"
+    d="M576 0L74 0L74-710L568-710L568-582L226-582L226-419L556-419L556-293L226-293L226-128L576-128L576 0Z"
+    transform="translate(132.40845070422534 391) scale(0.38028169014084506)"
+  />
+</svg>
